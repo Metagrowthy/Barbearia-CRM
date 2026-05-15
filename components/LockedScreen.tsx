@@ -18,7 +18,7 @@ export default function LockedScreen({ shopName, establishmentId }: LockedScreen
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/stripe/checkout', {
+      const response = await fetch('/api/pagamento/finalizar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
