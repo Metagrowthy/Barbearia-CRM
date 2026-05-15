@@ -1,21 +1,33 @@
 # Olá Rodrigo! 
 
-Como as mensagens do chat estão sumindo para você devido a algum bug na tela, eu criei este arquivo para você ler os comandos com calma e não perdê-los!
+Como as mensagens do chat estão sumindo, atualizei este arquivo com a solução para o novo erro (**403 Forbidden**).
 
-O erro do Git (`Repository not found`) está acontecendo porque a URL que o seu terminal gravou tem uma barra `/` sobrando no final.
+O erro acontece porque o seu computador está tentando usar a conta **Nathsanfer**, mas o repositório é da **Metagrowthy**.
 
-### Para consertar, rode os 2 comandos abaixo no seu terminal:
+### Como resolver (Escolha uma das opções):
 
-**1º Comando (Arrumar o link do seu repositório novo):**
+#### OPÇÃO A: Forçar o login da conta Metagrowthy (Recomendado)
+Rode estes dois comandos no seu terminal:
+
+1. **Trocar o usuário na URL:**
 ```bash
-git remote set-url origin https://github.com/Metagrowthy/crm-barbearia.git
+git remote set-url origin https://Metagrowthy@github.com/Metagrowthy/Barbearia-CRM.git
 ```
 
-**2º Comando (Mandar o código pro GitHub):**
+### NOVO ERRO: Push Rejeitado (rejected)
+
+Esse erro acontece porque o GitHub já tem alguns arquivos (ou histórico) que você não tem no seu computador. 
+
+Como você quer que o GitHub fique **exatamente igual** ao que está no seu computador agora, rode este comando para "forçar" o envio:
+
 ```bash
-git push -u origin main
+git push -u origin main --force
 ```
 
-Após rodar isso, o código já vai estar no seu GitHub e a Vercel vai puxar automaticamente.
+**O que esse comando faz?**
+Ele vai substituir tudo o que está no GitHub pelo código que está na sua máquina agora. Depois disso, o erro vai sumir e a Vercel vai conseguir ler o seu código!
 
-Se o chat continuar sumindo, escreva as suas dúvidas direto aqui neste arquivo que eu leio daqui!
+---
+
+Se precisar de mais ajuda, escreva aqui!
+
