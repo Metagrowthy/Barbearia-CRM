@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24.acacia', // using latest stable or default
-});
-
 export async function POST(req: Request) {
   try {
+    const Stripe = require('stripe');
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+      apiVersion: '2025-02-24.acacia',
+    });
+
     const { establishmentId } = await req.json();
 
     if (!establishmentId) {
