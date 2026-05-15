@@ -33,7 +33,8 @@ export async function GET(request: Request) {
     const barber = searchParams.get('barber') || searchParams.get('barbeiro') || searchParams.get('nome_barbeiro') || searchParams.get('nome');
     const client = searchParams.get('client') || searchParams.get('nome_cliente');
     const phone = searchParams.get('phone') || searchParams.get('telefone') || searchParams.get('numero');
-    const time = searchParams.get('time') || searchParams.get('hora');
+    let time = searchParams.get('time') || searchParams.get('hora');
+    if (time && time.includes('T')) time = time.split('T')[1].substring(0, 5);
     const establishmentId = searchParams.get('establishment_id');
 
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -131,7 +132,8 @@ export async function POST(request: Request) {
     let barber = body.barber || body.barbeiro || body.barber_name || 'Profissional'; // Default se a IA não mandar
     const service = body.service || body.servico || body.service_name;
     let date = body.date || body.data || body.appointment_date;
-    const time = body.time || body.hora || body.start_time;
+    let time = body.time || body.hora || body.start_time;
+    if (time && time.includes('T')) time = time.split('T')[1].substring(0, 5);
     const durationMinutes = body.durationMinutes || body.duracao || 45;
     const price = body.price || body.preco || body.valor || 0;
     const establishmentId = body.establishment_id;
@@ -234,9 +236,13 @@ export async function PUT(request: Request) {
     const client = body.client || body.nome || body.client_name;
     const phone = body.phone || body.telefone || body.numero || body.celular || body.client_phone;
     let oldDate = body.old_date || body.data_antiga || body.date;
-    const oldTime = body.old_time || body.hora_antiga || body.time;
+    let oldTime = body.old_time || body.hora_antiga || body.time;
+    if (oldTime && oldTime.includes('T')) oldTime = oldTime.split('T')[1].substring(0, 5);
+    
     let newDate = body.new_date || body.nova_data;
-    const newTime = body.new_time || body.nova_hora;
+    let newTime = body.new_time || body.nova_hora;
+    if (newTime && newTime.includes('T')) newTime = newTime.split('T')[1].substring(0, 5);
+    
     const establishmentId = body.establishment_id;
 
     // Converter DD/MM/YYYY para YYYY-MM-DD se necessário
@@ -343,7 +349,8 @@ export async function DELETE(request: Request) {
     const client = body.client || body.nome || body.client_name;
     const phone = body.phone || body.telefone || body.numero || body.celular || body.client_phone;
     let date = body.date || body.data;
-    const time = body.time || body.hora;
+    let time = body.time || body.hora;
+    if (time && time.includes('T')) time = time.split('T')[1].substring(0, 5);
     const establishmentId = body.establishment_id;
 
     // Converter DD/MM/YYYY para YYYY-MM-DD

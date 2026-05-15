@@ -15,6 +15,7 @@ import NotificationsView from '@/components/NotificationsView';
 import FinanceView from '@/components/FinanceView';
 import NewAppointmentModal from '@/components/NewAppointmentModal';
 import AuthView from '@/components/AuthView';
+import LockedScreen from '@/components/LockedScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, Scissors, Calendar, Users, Briefcase, Zap } from 'lucide-react';
 
@@ -49,6 +50,17 @@ export default function Home() {
   const [notification, setNotification] = React.useState<string | null>(null);
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = React.useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isLocked, setIsLocked] = React.useState(false);
+  const [isSuccess, setIsSuccess] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'true') {
+        setIsSuccess(true);
+      }
+    }
+  }, []);
 
   // Auth Session Check
   React.useEffect(() => {
@@ -448,6 +460,16 @@ export default function Home() {
         name: est.name || prev.name,
         ...settings
       }));
+
+      if (est.trial_ends_at) {
+        const trialEnds = new Date(est.trial_ends_at).getTime();
+        const now = new Date().getTime();
+        if (now > trialEnds && est.subscription_status !== 'active') {
+          setIsLocked(true);
+        } else {
+          setIsLocked(false);
+        }
+      }
     }
 
     if (finRes.data) {
@@ -946,6 +968,36 @@ export default function Home() {
     return <AuthView />;
   }
 
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center flex flex-col items-center">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+            <Zap size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Pagamento Aprovado!</h1>
+          <p className="text-gray-500 mb-6 text-sm">
+            Tudo certo! Como você está testando localmente, o webhook pode não atualizar o banco na hora. Mas o fluxo da Stripe funcionou perfeitamente.
+          </p>
+          <button 
+            onClick={() => {
+              // Limpa a URL e recarrega
+              window.history.replaceState(null, '', window.location.pathname);
+              setIsSuccess(false);
+            }} 
+            className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-all"
+          >
+            Entendi
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLocked) {
+    return <LockedScreen shopName={shopProfile.name} establishmentId={userProfile?.establishment_id || ''} />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Toast Notification */}
@@ -980,7 +1032,7 @@ export default function Home() {
         onTabChange={setActiveTab} 
         shopName={shopProfile.name}
         shopLogo={shopProfile.logo}
-        userName={userProfile?.full_name || shopProfile.userName}
+        userName={shopProfile.userName || userProfile?.full_name || 'Dono'}
         userRole={userProfile?.role || 'owner'}
         layout={themeConfig.layout}
         isOpen={isSidebarOpen}
@@ -997,7 +1049,7 @@ export default function Home() {
           onMarkAllRead={handleMarkAllRead}
           onLogout={handleLogout}
           onHistoryClick={() => setActiveTab('notifications')}
-          userName={userProfile?.full_name || userProfile?.userName || 'Dono'}
+          userName={shopProfile.userName || userProfile?.full_name || 'Dono'}
           userEmail={sessionEmail}
           onSearch={(q) => {
             setGlobalSearch(q);
