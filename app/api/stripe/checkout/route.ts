@@ -26,7 +26,6 @@ export async function POST(req: Request) {
     
     // Pass establishmentId in the client_reference_id so the webhook knows who paid
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       line_items: process.env.STRIPE_PRICE_ID 
         ? [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }]
         : [

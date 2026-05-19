@@ -43,6 +43,8 @@ interface FinanceViewProps {
   };
   onUpdateBarbers?: (newBarbers: any[]) => void;
   establishmentId?: string;
+  activeTab?: 'overview' | 'flow' | 'commissions' | 'inventory';
+  onTabChange?: (tab: 'overview' | 'flow' | 'commissions' | 'inventory') => void;
 }
 
 export default function FinanceView({ 
@@ -52,9 +54,15 @@ export default function FinanceView({
   services, 
   inventory, 
   onUpdateBarbers,
-  establishmentId
+  establishmentId,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange
 }: FinanceViewProps) {
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'flow' | 'commissions' | 'inventory'>('overview');
+  const [localActiveTab, setLocalActiveTab] = React.useState<'overview' | 'flow' | 'commissions' | 'inventory'>('overview');
+  
+  const activeTab = propActiveTab !== undefined ? propActiveTab : localActiveTab;
+  const setActiveTab = propOnTabChange !== undefined ? propOnTabChange : setLocalActiveTab;
+
   const [editingBarberId, setEditingBarberId] = React.useState<string | null>(null);
   const [editValues, setEditValues] = React.useState<any>({});
   const [period, setPeriod] = React.useState('Este Mês');
@@ -108,14 +116,22 @@ export default function FinanceView({
         if (hasLinkedRecord) return false;
       }
 
-      const dateStr = String(item.date).includes('T') ? item.date : `${item.date}T12:00:00`;
-      const itemDate = new Date(dateStr);
+      // Timezone-safe local parsing
+      const dateOnly = String(item.date).split('T')[0];
+      const [y, m, d] = dateOnly.split('-').map(Number);
+      if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+      
+      const itemDate = new Date(y, m - 1, d, 12, 0, 0);
       const itemTime = itemDate.getTime();
 
       if (period === 'Personalizado' && startDate && endDate) {
-        const start = new Date(`${startDate}T00:00:00`).getTime();
-        const end = new Date(`${endDate}T23:59:59`).getTime();
-        return itemTime >= start && itemTime <= end;
+        const [sy, sm, sd] = startDate.split('-').map(Number);
+        const [ey, em, ed] = endDate.split('-').map(Number);
+        if (!isNaN(sy) && !isNaN(ey)) {
+          const start = new Date(sy, sm - 1, sd, 0, 0, 0).getTime();
+          const end = new Date(ey, em - 1, ed, 23, 59, 59).getTime();
+          return itemTime >= start && itemTime <= end;
+        }
       }
 
       if (period === 'Hoje') return itemTime >= startOfToday && itemTime <= endOfToday;
@@ -125,8 +141,8 @@ export default function FinanceView({
         weekStart.setHours(0,0,0,0);
         return itemTime >= weekStart.getTime();
       }
-      if (period === 'Este Mês') return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
-      if (period === 'Ano') return itemDate.getFullYear() === now.getFullYear();
+      if (period === 'Este Mês') return m - 1 === now.getMonth() && y === now.getFullYear();
+      if (period === 'Ano') return y === now.getFullYear();
       return true;
     });
   }, [appointments, financialRecords, period, startDate, endDate]);
@@ -151,7 +167,7 @@ export default function FinanceView({
       const barberApps = filteredData.filter(a => {
         if (a.source !== 'appointment') return false;
         const status = (a.status || '').toLowerCase();
-        return (a.barber_id === barber.id || a.barberId === barber.id) && 
+        return (a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name) && 
                status !== 'cancelado' && 
                (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
       });
@@ -160,7 +176,16 @@ export default function FinanceView({
       const commissionRate = barber.commission_rate !== undefined ? barber.commission_rate : 40;
       const commissionFixed = barber.commission_fixed_value || 15;
 
-      const gross = barberApps.reduce((vacc, vcurr) => vacc + (Number(vcurr.amount) || 0), 0);
+      const gross = barberApps.reduce((vacc, vcurr) => {
+        let val = Number(vcurr.amount) || 0;
+        if (vcurr.source === 'appointment') {
+          const srv = services?.find(s => s.id === vcurr.service_id || s.name === vcurr.service);
+          if (srv && srv.price !== undefined) {
+            val = parseFloat(String(srv.price).replace(',', '.'));
+          }
+        }
+        return vacc + val;
+      }, 0);
       const totalBarberCommission = commissionType === 'percentage' 
         ? gross * (commissionRate / 100) 
         : barberApps.length * commissionFixed;
@@ -264,8 +289,9 @@ export default function FinanceView({
     return meses.map((name, index) => {
       const allItems = [...(appointments || []), ...(financialRecords || [])].filter(i => {
         if (!i.date) return false;
-        const d = new Date(i.date);
-        return d.getMonth() === index && d.getFullYear() === currentYear;
+        const dateOnly = String(i.date).split('T')[0];
+        const [y, m] = dateOnly.split('-').map(Number);
+        return (m - 1) === index && y === currentYear;
       });
       const receita = allItems.filter(i => {
         if (i.source === 'appointment') return (i.status || '').toLowerCase() !== 'cancelado';
@@ -493,31 +519,13 @@ export default function FinanceView({
         </div>
         
         <div className="flex flex-col md:flex-row items-end md:items-center gap-3">
-          {period === 'Personalizado' && (
-            <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-300">
-              <input 
-                type="date" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/20"
-              />
-              <span className="text-gray-400 text-[10px] font-black uppercase">Até</span>
-              <input 
-                type="date" 
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-          )}
-
           <div className="flex bg-white p-1 rounded-xl shadow-sm border border-outline overflow-x-auto max-w-[300px] sm:max-w-none">
-            {['Hoje', 'Esta Semana', 'Este Mês', 'Ano', 'Personalizado'].map((p) => (
+            {['Hoje', 'Esta Semana', 'Este Mês', 'Ano'].map((p) => (
               <button
                 key={p}
                 onClick={() => {
                   setPeriod(p);
-                  if (p !== 'Personalizado') setShowCustomDate(false);
+                  setShowCustomDate(false);
                 }}
                 className={`px-4 py-1.5 rounded-lg text-[10px] whitespace-nowrap font-black uppercase tracking-widest transition-all ${
                   period === p ? 'bg-primary text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'
@@ -527,17 +535,6 @@ export default function FinanceView({
               </button>
             ))}
           </div>
-          <button 
-            onClick={() => {
-              setPeriod('Personalizado');
-              setShowCustomDate(!showCustomDate);
-            }}
-            className={`p-2.5 bg-white border rounded-xl transition-all shadow-sm ${
-              period === 'Personalizado' ? 'text-primary border-primary/50' : 'text-gray-500 border-outline hover:border-primary/30'
-            }`}
-          >
-            <Filter size={18} />
-          </button>
           <button className="p-2.5 bg-white border border-outline rounded-xl text-gray-500 hover:text-primary hover:border-primary/30 transition-all shadow-sm">
             <Download size={18} />
           </button>
@@ -639,36 +636,6 @@ export default function FinanceView({
 
           </div>
 
-          {/* Insights em Cards de Baixa Dobra */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-5 bg-blue-50 border border-blue-100 rounded-3xl">
-              <div className="flex items-center gap-3 mb-3 text-blue-600">
-                <AlertCircle size={20} />
-                <h4 className="text-xs font-black uppercase tracking-widest">Alerta de Estoque</h4>
-              </div>
-              <p className="text-sm text-blue-800 leading-relaxed font-bold">
-                O insumo <span className="underline">Pomada Matte</span> está com 15% do estoque ideal. Reposição sugerida em 2 dias.
-              </p>
-            </div>
-            <div className="p-5 bg-green-50 border border-green-100 rounded-3xl">
-              <div className="flex items-center gap-3 mb-3 text-green-600">
-                <TrendingUp size={20} />
-                <h4 className="text-xs font-black uppercase tracking-widest">Insight de Lucro</h4>
-              </div>
-              <p className="text-sm text-green-800 leading-relaxed font-bold">
-                O serviço <span className="underline">Barba + Toalha Quente</span> subiu 40% na demanda. Considere um pequeno ajuste no valor.
-              </p>
-            </div>
-            <div className="p-5 bg-amber-50 border border-amber-100 rounded-3xl">
-              <div className="flex items-center gap-3 mb-3 text-amber-600">
-                <Users size={20} />
-                <h4 className="text-xs font-black uppercase tracking-widest">No-Shows em Alta</h4>
-              </div>
-              <p className="text-sm text-amber-800 leading-relaxed font-bold">
-                Detectamos 4 faltas sem aviso prévio esta semana. Sugerimos ativar o lembrete de WhatsApp 2h antes.
-              </p>
-            </div>
-          </div>
         </>
       )}
 
@@ -705,7 +672,7 @@ export default function FinanceView({
                     return (
                       <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
                         <td className="px-6 py-4 text-xs font-bold text-gray-500">
-                          {new Date(item.date).toLocaleDateString('pt-BR')}
+                          {String(item.date).split('T')[0].split('-').reverse().join('/')}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-xs font-black text-gray-900 flex items-center gap-2">
@@ -790,14 +757,23 @@ export default function FinanceView({
                       const apps = filteredData.filter(a => {
                         if (a.source !== 'appointment') return false;
                         const status = (a.status || '').toLowerCase();
-                        return (a.barber_id === barber.id || a.barberId === barber.id) && status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+                        return (a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name) && status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
                       });
                       
                       const commissionType = isEditing ? (editValues.commission_type || barber.commission_type || 'percentage') : (barber.commission_type || 'percentage');
                       const commissionRate = isEditing ? (editValues.commission_rate ?? (barber.commission_rate !== undefined ? barber.commission_rate : 40)) : (barber.commission_rate !== undefined ? barber.commission_rate : 40);
                       const commissionFixed = isEditing ? (editValues.commission_fixed_value ?? (barber.commission_fixed_value || 15)) : (barber.commission_fixed_value || 15);
 
-                      const gross = apps.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+                      const gross = apps.reduce((acc, curr) => {
+                        let val = curr.amount || 0;
+                        if (curr.source === 'appointment') {
+                          const srv = services?.find(s => s.id === curr.service_id || s.name === curr.service);
+                          if (srv && srv.price !== undefined) {
+                            val = parseFloat(String(srv.price).replace(',', '.'));
+                          }
+                        }
+                        return acc + val;
+                      }, 0);
                       
                       const totalCommission = commissionType === 'percentage' 
                         ? gross * (commissionRate / 100) 

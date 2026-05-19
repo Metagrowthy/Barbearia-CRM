@@ -4,17 +4,18 @@ import React from 'react';
 import { 
   Settings as SettingsIcon, Bell, Shield, Smartphone, Paintbrush, Globe, 
   Cloud, UserCircle, CreditCard, Save, RotateCcw, Check, AlertCircle,
+  Users,
   Instagram, MessageCircle, Mail, Lock, Eye, EyeOff, LayoutTemplate,
   Palette, Camera, ExternalLink, Trash2, Plus, Code, Link, Zap, Scissors,
-  Clock
+  Clock, ChevronRight, Loader2, ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
 const settingsSections = [
-  { id: 'profile', icon: UserCircle, title: 'Perfil da Barbearia', desc: 'Informações básicas, logo e contatos.' },
-  { id: 'barbers', icon: Scissors, title: 'Equipe & Funcionários', desc: 'Gerencie sua equipe e especialidades.' },
+  { id: 'profile', icon: UserCircle, title: 'Perfil do negócio', desc: 'Informações básicas, logo e contatos.' },
+  { id: 'barbers', icon: Users, title: 'Equipe & Funcionários', desc: 'Gerencie sua equipe e especialidades.' },
   { id: 'hours', icon: Clock, title: 'Horários de Funcionamento', desc: 'Defina os horários de abertura e fechamento.' },
   { id: 'billing', icon: CreditCard, title: 'Faturamento', desc: 'Assinatura, métodos de pagamento e invoices.' },
   { id: 'theme', icon: Paintbrush, title: 'Personalização', desc: 'Altere o layout do seu app' },
@@ -33,6 +34,8 @@ interface SettingsViewProps {
   onThemeUpdate: (newTheme: { primaryColor?: string; layout?: 'modern' | 'classic'; bgTheme?: string }) => void;
   externalHours?: any[];
   onUpdateBusinessHours?: (hours: any[]) => void;
+  activeSection?: string;
+  onSectionChange?: (section: string) => void;
 }
 
 export default function SettingsView({ 
@@ -43,9 +46,14 @@ export default function SettingsView({
   onProfileUpdate, 
   onThemeUpdate,
   externalHours,
-  onUpdateBusinessHours
+  onUpdateBusinessHours,
+  activeSection: propActiveSection,
+  onSectionChange: propOnSectionChange
 }: SettingsViewProps) {
-  const [activeSection, setActiveSection] = React.useState('profile');
+  const [localActiveSection, setLocalActiveSection] = React.useState('profile');
+  
+  const activeSection = propActiveSection !== undefined ? propActiveSection : localActiveSection;
+  const setActiveSection = propOnSectionChange !== undefined ? propOnSectionChange : setLocalActiveSection;
   const [isSaving, setIsSaving] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [notificationText, setNotificationText] = React.useState<string | null>(null);
@@ -263,7 +271,7 @@ export default function SettingsView({
             value={localProfile.description || ''} 
             onChange={e => setLocalProfile({...localProfile, description: e.target.value})} 
             className="w-full px-4 py-3 bg-gray-50 border border-outline rounded-xl text-sm font-bold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900 h-24 resize-none"
-            placeholder="Ex: Expertise em cortes clássicos e barba desde 2010."
+            placeholder="Ex: Insira os detalhes do seu negócio"
           />
         </div>
 
@@ -390,6 +398,63 @@ export default function SettingsView({
                   </button>
                 </div>
               </div>
+
+              {/* Acesso ao App */}
+              <div className="mt-4 pt-4 border-t border-outline">
+                <div 
+                  className="flex items-center justify-between mb-2 cursor-pointer group"
+                  onClick={() => updateBarberField(barber.id, 'showAccess', !barber.showAccess)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Lock size={14} className={barber.has_access ? "text-green-500" : "text-gray-400"} />
+                    <span className="text-[10px] font-black text-gray-700 uppercase tracking-widest group-hover:text-primary transition-colors">
+                      Acesso ao Aplicativo
+                    </span>
+                    {barber.has_access && (
+                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[9px] font-bold">Ativo</span>
+                    )}
+                  </div>
+                  <ChevronRight size={14} className={cn("text-gray-400 transition-transform", barber.showAccess && "rotate-90")} />
+                </div>
+                
+                {barber.showAccess && (
+                  <div className="bg-gray-50/50 p-4 rounded-xl border border-outline/50 grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    {!barber.has_access ? (
+                      <>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">E-mail de Login</label>
+                          <input 
+                            type="email" 
+                            placeholder="funcionario@barbearia.com"
+                            value={barber.access_email || ''} 
+                            onChange={(e) => updateBarberField(barber.id, 'access_email', e.target.value)}
+                            className="w-full px-4 py-2 bg-white border border-outline rounded-xl text-xs font-medium focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">Senha Provisória</label>
+                          <input 
+                            type="password" 
+                            placeholder="Mínimo 6 caracteres"
+                            value={barber.access_password || ''} 
+                            onChange={(e) => updateBarberField(barber.id, 'access_password', e.target.value)}
+                            className="w-full px-4 py-2 bg-white border border-outline rounded-xl text-xs font-medium focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                          />
+                        </div>
+                        <div className="col-span-1 md:col-span-2 mt-1">
+                          <p className="text-[9px] text-gray-500 uppercase tracking-tight">
+                            * Preencha os campos acima e clique em "Salvar Alterações" no topo da página para gerar o acesso deste funcionário.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="col-span-1 md:col-span-2 text-[10px] text-gray-500 font-medium">
+                        Este funcionário já possui acesso ativo ao sistema. Se ele esqueceu a senha, peça para ele utilizar a opção "Esqueci minha senha" na tela de login inicial.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -420,7 +485,14 @@ export default function SettingsView({
     // Ensure we always have 7 days, merging external data if exists
     const hoursList = Array.from({ length: 7 }, (_, i) => {
       const existing = externalHours?.find(h => h.day_of_week === i);
-      return existing || defaultHours[i];
+      if (existing) {
+        return {
+          ...existing,
+          open_time: existing.open_time || defaultHours[i].open_time,
+          close_time: existing.close_time || defaultHours[i].close_time,
+        };
+      }
+      return defaultHours[i];
     });
 
     const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -521,38 +593,101 @@ export default function SettingsView({
     );
   };
 
-  const renderBilling = () => (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <div className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Plano Atual</p>
-          <h3 className="text-xl font-black transition-colors">Premium Pro <span className="text-sm font-bold text-muted-theme">(Anual)</span></h3>
-        </div>
-        <button className="bg-white px-5 py-2 rounded-xl text-xs font-black text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all shadow-sm">Alterar Plano</button>
-      </div>
+  const [isBillingLoading, setIsBillingLoading] = React.useState(false);
 
-      <div className="space-y-4">
-        <h4 className="text-xs font-black uppercase tracking-widest text-muted-theme flex items-center gap-2">
-           <CreditCard size={14} /> Métodos de Pagamento
-        </h4>
-        {cards.map(card => (
-          <div key={card.id} className="p-4 bg-white border border-outline rounded-2xl flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-8 bg-gray-100 rounded-lg flex items-center justify-center font-black text-[10px] text-gray-400">{card.brand}</div>
-              <div>
-                <p className="text-sm font-bold text-gray-900">•••• •••• •••• {card.last4}</p>
-                <p className="text-[10px] text-muted-theme font-bold uppercase">Expira em {card.expiry}</p>
-              </div>
-            </div>
-            <button onClick={() => removeCard(card.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+  const handleManageBilling = async () => {
+    try {
+      setIsBillingLoading(true);
+      
+      // If the user hasn't paid yet, they don't have a Stripe Customer ID.
+      // In this case, send them to the Checkout instead of the Portal.
+      if (initialProfile?.subscription_status !== 'active') {
+        const response = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ establishmentId: initialProfile.id }),
+        });
+        const data = await response.json();
+        if (data.url) window.location.href = data.url;
+        else throw new Error(data.error || 'Erro ao iniciar checkout');
+      } else {
+        // Active users go to the Customer Portal
+        const response = await fetch('/api/stripe/portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ establishmentId: initialProfile.id }),
+        });
+        const data = await response.json();
+        if (data.url) window.location.href = data.url;
+        else throw new Error(data.error || 'Erro ao carregar portal de pagamento');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsBillingLoading(false);
+    }
+  };
+
+  const renderBilling = () => {
+    const isActive = initialProfile?.subscription_status === 'active';
+    let daysLeftText = '';
+    let isExpired = false;
+
+    if (!isActive && initialProfile?.created_at) {
+      const createdAt = new Date(initialProfile.created_at);
+      const now = new Date();
+      const trialEnds = new Date(createdAt.getTime() + 10 * 24 * 60 * 60 * 1000);
+      const daysLeft = Math.ceil((trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysLeft > 0) {
+        daysLeftText = `${daysLeft} dia${daysLeft > 1 ? 's' : ''} restante${daysLeft > 1 ? 's' : ''}`;
+      } else {
+        isExpired = true;
+        daysLeftText = 'Expirado';
+      }
+    }
+    
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div>
+            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Status da Assinatura</p>
+            <h3 className="text-xl font-black transition-colors flex items-center gap-3">
+              {isActive ? 'Plano Ativo' : 'Período de Teste'}
+              {isActive ? (
+                <span className="bg-[#39ff14]/20 text-[#2db30e] text-[10px] px-2 py-1 rounded-md uppercase tracking-wider font-bold">OK</span>
+              ) : (
+                <span className={cn(
+                  "text-[10px] px-2 py-1 rounded-md uppercase tracking-wider font-bold",
+                  isExpired ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                )}>
+                  {daysLeftText}
+                </span>
+              )}
+            </h3>
           </div>
-        ))}
-        <button className="w-full py-4 border-2 border-dashed border-outline rounded-2xl text-[10px] font-black text-gray-400 uppercase tracking-widest hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all">
-          + Adicionar Novo Cartão
-        </button>
+          <button 
+            onClick={handleManageBilling}
+            disabled={isBillingLoading}
+            className="w-full md:w-auto bg-primary px-6 py-4 md:py-3 rounded-xl text-xs font-black text-white hover:bg-primary/90 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isBillingLoading ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+            {isActive ? 'Gerenciar Cartões e Faturas' : 'Fazer Upgrade de Plano'}
+          </button>
+        </div>
+
+        <div className="p-6 bg-gray-50 border border-outline rounded-3xl">
+           <h5 className="text-xs font-black text-gray-900 flex items-center gap-2 mb-3">
+             <ShieldCheck size={16} className="text-primary" /> Ambiente Seguro Stripe
+           </h5>
+           <p className="text-xs text-gray-500 font-medium leading-relaxed">
+             Para sua segurança jurídica e financeira, não armazenamos dados do seu cartão no nosso sistema. 
+             Ao clicar no botão acima, você será redirecionado ao portal oficial da Stripe para adicionar cartões de crédito ou faturar via PIX de forma 100% criptografada.
+           </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderTheme = () => (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">

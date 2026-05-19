@@ -9,8 +9,14 @@ import Image from 'next/image';
 const StatusBadge = ({ status }: { status: string }) => {
   switch (status) {
     case 'confirmado':
+    case 'scheduled':
       return <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-50 text-green-700 border border-green-100">
         <CheckCircle2 size={12} /> Confirmado
+      </span>;
+    case 'concluido':
+    case 'completed':
+      return <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+        <CheckCircle2 size={12} /> Concluído
       </span>;
     case 'em-andamento':
       return <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
@@ -21,22 +27,26 @@ const StatusBadge = ({ status }: { status: string }) => {
         <Clock size={12} /> Pendente
       </span>;
     case 'cancelado':
+    case 'cancelled':
       return <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-100">
         <XCircle size={12} /> Cancelado
       </span>;
     default:
-      return null;
+      return <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-50 text-gray-700 border border-gray-100">
+        {status}
+      </span>;
   }
 };
 
 interface AppointmentsTableProps {
   onSeeAll?: () => void;
   appointments?: any[];
+  onDeleteAppointment?: (id: number) => void;
 }
 
-export default function AppointmentsTable({ onSeeAll, appointments: externalAppointments }: AppointmentsTableProps) {
+export default function AppointmentsTable({ onSeeAll, appointments: externalAppointments, onDeleteAppointment }: AppointmentsTableProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
+  const [hideCompleted, setHideCompleted] = React.useState(false);
 
   // Use external appointments or empty array
   const activeAppointments = externalAppointments || [];
@@ -44,7 +54,8 @@ export default function AppointmentsTable({ onSeeAll, appointments: externalAppo
   const filteredAppointments = activeAppointments.filter(apt => {
     const matchesSearch = apt.client.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          apt.service.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter ? apt.status === statusFilter : apt.status !== 'cancelado';
+    const isCompleted = apt.status === 'concluido' || apt.status === 'pago';
+    const matchesStatus = hideCompleted ? !isCompleted && apt.status !== 'cancelado' : apt.status !== 'cancelado';
     return matchesSearch && matchesStatus;
   });
 
@@ -74,12 +85,12 @@ export default function AppointmentsTable({ onSeeAll, appointments: externalAppo
             />
           </div>
           <button 
-            onClick={() => setStatusFilter(statusFilter === 'confirmado' ? null : 'confirmado')}
+            onClick={() => setHideCompleted(!hideCompleted)}
             className={cn(
               "p-1.5 border rounded-md transition-colors",
-              statusFilter === 'confirmado' ? "bg-primary/10 border-primary text-primary" : "border-outline text-gray-600 hover:bg-gray-50"
+              hideCompleted ? "bg-primary/10 border-primary text-primary" : "border-outline text-gray-600 hover:bg-gray-50"
             )}
-            title="Filtrar Confirmados"
+            title={hideCompleted ? "Mostrar Todos" : "Ocultar Atendidos"}
           >
             <Filter size={16} />
           </button>
@@ -114,14 +125,12 @@ export default function AppointmentsTable({ onSeeAll, appointments: externalAppo
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                          <Image 
-                            src={`https://picsum.photos/seed/${apt.client}/32/32`} 
-                            alt={apt.client} 
-                            fill 
-                            className="object-cover"
-                            referrerPolicy="no-referrer"
-                          />
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center relative border border-white shadow-sm">
+                          <span className="font-black text-[10px] uppercase tracking-wider">
+                            {apt.client && apt.client !== 'Sem Nome' 
+                              ? apt.client.split(' ').slice(0,2).map((n: string) => n[0]).join('') 
+                              : '?'}
+                          </span>
                         </div>
                         <span className="text-xs font-bold text-gray-900 group-hover:text-primary transition-colors">{apt.client}</span>
                       </div>
@@ -133,12 +142,42 @@ export default function AppointmentsTable({ onSeeAll, appointments: externalAppo
                       <StatusBadge status={apt.status} />
                     </td>
                     <td className="px-4 py-3 text-xs text-right font-bold text-gray-900">{apt.price}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600">
-                        <MoreVertical size={16} />
-                      </button>
-                    </td>
-                  </motion.tr>
+                      <td className="px-4 py-3 text-right">
+                        <div className="relative group/menu">
+                          <button className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600 focus:outline-none">
+                            <MoreVertical size={16} />
+                          </button>
+                          <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-lg border border-outline opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20 overflow-hidden">
+                            {apt.status !== 'confirmado' && apt.status !== 'concluido' && apt.status !== 'cancelado' && (
+                              <button 
+                                onClick={() => onUpdateStatus?.(apt.id, 'confirmado')}
+                                className="w-full text-left px-4 py-2 text-xs font-bold text-green-600 hover:bg-green-50 transition-colors flex items-center gap-2"
+                              >
+                                <CheckCircle2 size={14} /> Confirmar
+                              </button>
+                            )}
+                            {apt.status !== 'cancelado' && apt.status !== 'concluido' && (
+                              <button 
+                                onClick={() => onUpdateStatus?.(apt.id, 'cancelado')}
+                                className="w-full text-left px-4 py-2 text-xs font-bold text-amber-600 hover:bg-amber-50 transition-colors flex items-center gap-2"
+                              >
+                                <XCircle size={14} /> Cancelar
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                if(confirm('Tem certeza que deseja excluir este agendamento?')) {
+                                  onDeleteAppointment?.(apt.id);
+                                }
+                              }}
+                              className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2 border-t border-outline border-dashed"
+                            >
+                              <XCircle size={14} /> Excluir
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </motion.tr>
                 ))
               ) : (
                 <motion.tr

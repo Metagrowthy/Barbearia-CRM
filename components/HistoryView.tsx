@@ -14,13 +14,15 @@ interface HistoryViewProps {
     supplies: any[];
   };
   establishmentId?: string;
+  userProfile?: any;
 }
 
 export default function HistoryView({ 
   onRefresh, 
   services = [], 
   inventory = { drinks: [], supplies: [] },
-  establishmentId
+  establishmentId,
+  userProfile
 }: HistoryViewProps) {
   const [dbAppointments, setDbAppointments] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -47,6 +49,10 @@ export default function HistoryView({
         setDbAppointments([]);
         setIsLoading(false);
         return;
+      }
+
+      if (userProfile?.role === 'employee' && userProfile?.full_name) {
+        query = query.eq('barber_name', userProfile.full_name);
       }
 
       const { data, error } = await query
@@ -116,6 +122,67 @@ export default function HistoryView({
     }, 0);
 
     return servicesTotal + productsTotal;
+  };
+
+  const handleUpdateStatus = async (id: number, status: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
+      if (error) throw error;
+      setDbAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      console.error('Error updating status:', err);
+      alert('Erro ao atualizar status: ' + err.message);
+    }
+  };
+
+  const handleQuickComplete = async (apt: any) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setIsSaving(true);
+    try {
+      // 1. Update status to concluido
+      const { error: aptError } = await supabase
+        .from('appointments')
+        .update({ status: 'concluido' })
+        .eq('id', apt.id);
+
+      if (aptError) throw new Error(aptError.message);
+
+      // 2. Create financial record
+      const { data: existingRecords } = await supabase
+        .from('financial_records')
+        .select('id')
+        .eq('appointment_id', apt.id)
+        .limit(1);
+
+      const finPayload = {
+        description: `Atendimento: ${apt.client_name || 'Cliente'}`,
+        amount: Number(apt.price),
+        type: 'income',
+        category: 'Serviço',
+        date: apt.appointment_date,
+        barber_id: apt.barber_id || apt.barberId,
+        appointment_id: apt.id,
+        establishment_id: establishmentId
+      };
+
+      if (existingRecords && existingRecords.length > 0) {
+        await supabase.from('financial_records').update(finPayload).eq('id', existingRecords[0].id);
+      } else {
+        await supabase.from('financial_records').insert([finPayload]);
+      }
+
+      await performFetch();
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      console.error('Error quick complete:', err);
+      alert('Erro ao concluir atendimento: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveAdjustment = async () => {
@@ -374,7 +441,7 @@ export default function HistoryView({
                   <td className="px-6 py-5 text-right">
                     <div className="flex flex-col items-end gap-2">
                       <span className={cn(
-                        "text-[9px] font-black uppercase px-2 py-0.5 rounded-sm border",
+                        "text-[9px] font-black uppercase px-2 py-0.5 rounded-sm border mb-1",
                         apt.source === 'app' 
                           ? "bg-blue-50 text-blue-600 border-blue-100" 
                           : "bg-green-50 text-green-600 border-green-100"
@@ -382,12 +449,32 @@ export default function HistoryView({
                         {apt.source === 'app' ? 'Dashboard' : 'Agendamento Online'}
                       </span>
                       
-                      <button 
-                        onClick={() => handleOpenModal(apt)}
-                        className="opacity-0 group-hover:opacity-100 text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5 hover:underline transition-all"
-                      >
-                        <Edit2 size={10} /> Ajustar
-                      </button>
+                      <div className="flex flex-col items-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                        {apt.status !== 'concluido' && apt.status !== 'cancelado' && (
+                          <button 
+                            onClick={() => handleQuickComplete(apt)}
+                            className="text-[10px] font-black uppercase tracking-widest text-green-600 flex items-center gap-1.5 hover:underline"
+                          >
+                            <CheckCircle2 size={10} /> Concluir
+                          </button>
+                        )}
+                        {apt.status !== 'cancelado' && apt.status !== 'concluido' && (
+                          <button 
+                            onClick={() => handleUpdateStatus(apt.id, 'cancelado')}
+                            className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5 hover:underline"
+                          >
+                            <AlertCircle size={10} /> Cancelar
+                          </button>
+                        )}
+                        {apt.status !== 'cancelado' && (
+                          <button 
+                            onClick={() => handleOpenModal(apt)}
+                            className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5 hover:underline"
+                          >
+                            <Edit2 size={10} /> Ajustar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>

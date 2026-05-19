@@ -1,0 +1,30 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+  <defs>
+    <linearGradient id="leftLeg" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#84cc16" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="rightLeg" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <!-- Left Ribbon (Mathematically Perfect Angle) -->
+  <path 
+    d="M 14 80 L 34 30 L 50 70" 
+    fill="none" 
+    stroke="url(#leftLeg)" 
+    stroke-width="18" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+  <!-- Right Ribbon (Mathematically Perfect Angle & Overlapping) -->
+  <path 
+    d="M 50 70 L 66 30 L 86 80" 
+    fill="none" 
+    stroke="url(#rightLeg)" 
+    stroke-width="18" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+</svg>

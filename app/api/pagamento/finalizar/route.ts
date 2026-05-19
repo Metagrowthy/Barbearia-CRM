@@ -52,7 +52,17 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {
-    console.error('Stripe Checkout Error:', error);
+    console.error('DETALHES DO ERRO STRIPE:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    
+    // Se o erro for o chato do Google, vamos ignorar e mandar uma mensagem real
+    if (error.message.includes('apiKey')) {
+       return NextResponse.json({ error: 'Erro de Configuração na Vercel: Verifique se a chave STRIPE_SECRET_KEY foi adicionada corretamente no painel da Vercel.' }, { status: 500 });
+    }
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

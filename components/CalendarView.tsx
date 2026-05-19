@@ -9,9 +9,10 @@ interface CalendarViewProps {
   onNewAppointment?: () => void;
   appointments?: any[];
   barbersList?: any[];
+  userProfile?: any;
 }
 
-export default function CalendarView({ onNewAppointment, appointments: externalAppointments, barbersList }: CalendarViewProps) {
+export default function CalendarView({ onNewAppointment, appointments: externalAppointments, barbersList, userProfile }: CalendarViewProps) {
   const today = new Date();
   const [currentView, setCurrentView] = React.useState('Dia');
   const [currentMonth, setCurrentMonth] = React.useState(today.getMonth()); 
@@ -24,7 +25,14 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
     { name: 'Matheus (Freelance)', color: 'bg-green-400' },
   ];
 
-  const barbers = barbersList || defaultBarbers;
+  const barbers = React.useMemo(() => {
+    const list = barbersList || defaultBarbers;
+    // Se for um funcionário logado, filtra para mostrar apenas ele mesmo
+    if (userProfile?.role === 'employee' && userProfile?.full_name) {
+      return list.filter((b: any) => b.name === userProfile.full_name);
+    }
+    return list;
+  }, [barbersList, userProfile]);
   
   const [selectedBarbers, setSelectedBarbers] = React.useState<string[]>([]);
 
@@ -36,6 +44,23 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
       hasInitializedBarbers.current = true;
     }
   }, [barbers]);
+
+  // Calculate the 7 dates of the week of selectedDay
+  const weekDates = React.useMemo(() => {
+    const selectedDate = new Date(currentYear, currentMonth, selectedDay);
+    const dayOfWeek = selectedDate.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentYear, currentMonth, selectedDay);
+      d.setDate(d.getDate() + diffToMonday + i);
+      dates.push(d);
+    }
+    return dates;
+  }, [currentYear, currentMonth, selectedDay]);
+
+  const activeBarberName = selectedBarbers[0] || (barbers[0] && barbers[0].name);
 
   const defaultAppointments = [
     { id: 1, client: "Arthur Morgan", service: "Corte + Barba", barber: "Rodrigo (Sênior)", time: "09:00", durationMinutes: 45, day: 22, colorClass: "bg-primary/10 border-primary text-primary" },
@@ -91,6 +116,30 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
     }
   };
 
+  const handlePrev = () => {
+    const activeDate = new Date(currentYear, currentMonth, selectedDay);
+    if (currentView === 'Dia') {
+      activeDate.setDate(activeDate.getDate() - 1);
+    } else {
+      activeDate.setDate(activeDate.getDate() - 7);
+    }
+    setCurrentYear(activeDate.getFullYear());
+    setCurrentMonth(activeDate.getMonth());
+    setSelectedDay(activeDate.getDate());
+  };
+
+  const handleNext = () => {
+    const activeDate = new Date(currentYear, currentMonth, selectedDay);
+    if (currentView === 'Dia') {
+      activeDate.setDate(activeDate.getDate() + 1);
+    } else {
+      activeDate.setDate(activeDate.getDate() + 7);
+    }
+    setCurrentYear(activeDate.getFullYear());
+    setCurrentMonth(activeDate.getMonth());
+    setSelectedDay(activeDate.getDate());
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -98,16 +147,36 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
       className="p-4 md:p-8 max-w-7xl mx-auto w-full"
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            Agenda <CalendarIcon size={20} className="text-primary" />
-          </h1>
-          <p className="text-xs md:text-sm text-gray-500 mt-1">Gerencie seus horários e agendamentos com facilidade.</p>
+        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              Agenda <CalendarIcon size={20} className="text-primary" />
+            </h1>
+            <p className="text-xs md:text-sm text-gray-500 mt-1">Gerencie seus horários e agendamentos com facilidade.</p>
+          </div>
+          
+          {/* Navigation Arrows for Day/Week */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-outline shadow-xs self-start md:self-center mt-2 md:mt-0">
+            <button 
+              onClick={handlePrev}
+              title={currentView === 'Dia' ? "Dia Anterior" : "Semana Anterior"}
+              className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 rounded-lg transition-all active:scale-90"
+            >
+              <ChevronLeft size={18} className="stroke-[2.5]" />
+            </button>
+            <button 
+              onClick={handleNext}
+              title={currentView === 'Dia' ? "Próximo Dia" : "Próxima Semana"}
+              className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 rounded-lg transition-all active:scale-90"
+            >
+              <ChevronRight size={18} className="stroke-[2.5]" />
+            </button>
+          </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-outline shadow-xs">
-            {['Dia', 'Semana', 'Mês'].map((label) => (
+            {['Dia', 'Semana'].map((label) => (
               <button 
                 key={label}
                 onClick={() => setCurrentView(label)}
@@ -203,8 +272,8 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
 
             <div className="overflow-x-auto">
               <div className={cn(
-                "min-w-[600px] lg:min-w-0",
-                currentView === 'Dia' && "flex flex-col"
+                "min-w-[900px] lg:min-w-0",
+                (currentView === 'Dia' || currentView === 'Semana') && "flex flex-col"
               )}>
                 {/* Header for Barbers in Dia view */}
                 {currentView === 'Dia' && (
@@ -218,6 +287,49 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Header for Days in Semana view */}
+                {currentView === 'Semana' && (
+                  <div className="flex border-b border-outline bg-gray-50/30">
+                    <div className="w-20 shrink-0 border-r border-outline flex flex-col items-center justify-center p-2 bg-gray-50/30">
+                      {activeBarberName && (
+                        <>
+                          <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 leading-none text-center">Profissional</span>
+                          <span className="text-[9px] font-black text-primary truncate max-w-full mt-1 text-center">{activeBarberName.split(' ')[0]}</span>
+                        </>
+                      )}
+                    </div>
+                    {(() => {
+                      const weekDaysLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+                      return weekDates.map((dateObj, idx) => {
+                        const isToday = dateObj.toDateString() === new Date().toDateString();
+                        const dayLabel = weekDaysLabels[idx];
+                        const dayNum = dateObj.getDate();
+                        const monthNum = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        
+                        return (
+                          <div key={idx} className={cn(
+                            "flex-1 p-2 text-center border-r border-outline last:border-r-0 flex flex-col justify-center",
+                            isToday && "bg-primary/5"
+                          )}>
+                            <span className={cn(
+                              "block text-[10px] font-black uppercase tracking-wider",
+                              isToday ? "text-primary" : "text-gray-500"
+                            )}>
+                              {dayLabel}
+                            </span>
+                            <span className={cn(
+                              "block text-xs font-black mt-0.5",
+                              isToday ? "text-primary" : "text-gray-700"
+                            )}>
+                              {dayNum}/{monthNum}
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 
@@ -294,32 +406,84 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
                             </div>
                           );
                         })
-                      ) : (
-                        // Standard view for Week/Month (Simplified for now as user stressed Dia view gaps)
-                        <div className="flex-1 p-2 relative">
-                          {activeAppointments
-                            .filter(a => {
+                      ) : currentView === 'Semana' ? (
+                        // 7 Columns representing Seg to Dom for the first selected barber
+                        selectedBarbers.length === 0 ? (
+                          <div className="flex-1 p-4 text-center text-xs font-bold text-gray-400 flex items-center justify-center">
+                            Selecione um funcionário na lateral para visualizar a agenda semanal.
+                          </div>
+                        ) : (
+                          weekDates.map((dateObj, idx) => {
+                            const colDateString = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                            const isToday = dateObj.toDateString() === new Date().toDateString();
+
+                            const app = activeAppointments.find(a => {
                               if (!a.time || typeof a.time !== 'string') return false;
+                              
+                              // Check hour
                               const appHour = a.time.split(':')[0];
                               const slotHour = time.split(':')[0];
                               if (appHour !== slotHour) return false;
                               
+                              // Check date
                               if (a.fullDate) {
-                                if (a.fullDate !== currentFormattedDate) return false;
-                              } else if (a.day !== selectedDay) {
-                                return false;
+                                if (a.fullDate !== colDateString) return false;
+                              } else {
+                                if (a.day !== dateObj.getDate()) return false;
                               }
-
+                              
                               if (!a.barber) return false;
                               
-                              return selectedBarbers.includes(a.barber) || selectedBarbers.some(sb => sb.toLowerCase().includes(a.barber.toLowerCase()) || a.barber.toLowerCase().includes(sb.split(' ')[0].toLowerCase()));
-                            })
-                            .map(app => (
-                              <div key={app.id} className={cn("inline-block m-1 border-l-4 rounded-md p-2 shadow-sm", app.colorClass)}>
-                                <p className="text-[11px] font-extrabold">{app.client} ({app.barber.split(' ')[0]})</p>
+                              const isExactName = a.barber === activeBarberName;
+                              const isIncluded = activeBarberName.toLowerCase().includes(a.barber.toLowerCase());
+                              const reverseMatch = a.barber.toLowerCase().includes(activeBarberName.split(' ')[0].toLowerCase());
+                              
+                              return isExactName || isIncluded || reverseMatch;
+                            });
+
+                            return (
+                              <div key={idx} className={cn(
+                                "flex-1 p-1 relative border-r border-outline last:border-r-0 group/slot",
+                                isToday && "bg-primary/2"
+                              )}>
+                                <AnimatePresence>
+                                  {app ? (
+                                    <motion.div 
+                                      key={app.id}
+                                      initial={{ opacity: 0, scale: 0.95 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      exit={{ opacity: 0, scale: 0.95 }}
+                                      className={cn(
+                                        "absolute inset-1 border-l-4 rounded-md p-1.5 shadow-xs z-10 flex flex-col justify-center overflow-hidden",
+                                        app.colorClass
+                                      )}
+                                    >
+                                      <div className="flex justify-between items-start mb-0.5">
+                                        <p className="text-[10px] font-extrabold truncate max-w-full leading-tight">{app.client}</p>
+                                      </div>
+                                      <p className="text-[9px] opacity-90 font-bold truncate leading-none mb-0.5">{app.service}</p>
+                                      <p className="text-[8px] font-black uppercase tracking-tighter opacity-70 leading-none">
+                                        {app.time}
+                                      </p>
+                                    </motion.div>
+                                  ) : (
+                                    <div 
+                                      onClick={onNewAppointment}
+                                      className="absolute inset-0 opacity-0 group-hover/slot:opacity-100 bg-emerald-50/50 cursor-pointer flex flex-col items-center justify-center transition-all border border-dashed border-transparent hover:border-emerald-200 m-0.5 rounded-lg"
+                                    >
+                                      <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest leading-none">Livre</span>
+                                      <PlusCircle size={12} className="mt-0.5 text-emerald-500" />
+                                    </div>
+                                  )}
+                                </AnimatePresence>
                               </div>
-                            ))
-                          }
+                            );
+                          })
+                        )
+                      ) : (
+                        // Standard view for Month / Other
+                        <div className="flex-1 p-2 relative">
+                          {/* Fallback */}
                         </div>
                       )}
                     </div>

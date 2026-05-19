@@ -5,6 +5,13 @@ import { X, Calendar, Clock, User, Phone, Scissors, DollarSign, CheckCircle2, Sh
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
+function getLocalDateString(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -14,6 +21,7 @@ interface NewAppointmentModalProps {
   inventoryList?: any[];
   businessHours?: any[];
   clientsList?: any[];
+  appointments?: any[];
   establishmentId?: string;
 }
 
@@ -26,6 +34,7 @@ export default function NewAppointmentModal({
   inventoryList = [],
   businessHours = [],
   clientsList = [],
+  appointments = [],
   establishmentId
 }: NewAppointmentModalProps) {
   const [step, setStep] = React.useState(1);
@@ -36,7 +45,7 @@ export default function NewAppointmentModal({
     barber: '',
     selectedServices: [] as number[],
     selectedProducts: [] as { id: number, quantity: number }[],
-    date: new Date().getDate().toString(),
+    date: getLocalDateString(new Date()),
     time: '',
     clientId: '' as string | undefined
   });
@@ -44,35 +53,75 @@ export default function NewAppointmentModal({
   const defaultBarbersList = ["Rodrigo (Sênior)", "Lucas (Júnior)", "Matheus (Freelance)"];
   const optionsBarbers = barbersList ? barbersList.map(b => b.name) : defaultBarbersList;
 
-  // Derived time slots based on business hours
-  const availableTimeSlots = React.useMemo(() => {
-    const date = new Date();
-    date.setDate(parseInt(formData.date, 10));
-    const dayOfWeek = date.getDay();
-    const hours = businessHours.find(h => h.day_of_week === dayOfWeek);
+  const [showExtraHours, setShowExtraHours] = React.useState(false);
 
-    if (!hours || hours.is_closed || !hours.open_time || !hours.close_time) {
+  // Calculate total duration needed for selected services
+  const totalDuration = React.useMemo(() => {
+    return servicesList
+      .filter(s => formData.selectedServices.includes(s.id))
+      .reduce((sum, s) => sum + (s.durationMinutes || parseInt(s.duration?.replace(/\D/g, '') || '30')), 0) || 30;
+  }, [servicesList, formData.selectedServices]);
+
+  // Derived time slots based on business hours and overlapping appointments
+  const availableTimeSlots = React.useMemo(() => {
+    const date = new Date(formData.date + 'T12:00:00');
+    const dayOfWeek = date.getDay();
+    const hours = businessHours?.find(h => Number(h.day_of_week) === dayOfWeek || Number(h.day) === dayOfWeek);
+
+    if (!hours || String(hours.is_closed) === 'true' || hours.is_closed === true) {
       return [];
     }
 
+    const openTime = hours.open_time || '08:00';
+    const closeTime = hours.close_time || '19:00';
+
     const slots = [];
-    const [startH, startM] = hours.open_time.split(':').map(Number);
-    const [endH, endM] = hours.close_time.split(':').map(Number);
+    const [startH, startM] = openTime.split(':').map(Number);
+    let [endH, endM] = closeTime.split(':').map(Number);
+
+    if (showExtraHours) {
+      endH = 23;
+      endM = 30;
+    }
+
+    // Get occupied ranges for the selected barber on this date
+    const barberApts = (appointments || []).filter(a => a.barber === formData.barber && a.date === formData.date && a.status !== 'cancelado');
+    const occupiedRanges = barberApts.map(a => {
+      const [h, m] = (a.time || '00:00').split(':').map(Number);
+      const startMins = h * 60 + m;
+      const endMins = startMins + (a.durationMinutes || 45);
+      return { start: startMins, end: endMins };
+    });
+
+    const now = new Date();
+    const isToday = formData.date === getLocalDateString(now);
+    const currentMins = now.getHours() * 60 + now.getMinutes();
 
     let currentH = startH;
     let currentM = startM;
 
     while (currentH < endH || (currentH === endH && currentM < endM)) {
-      slots.push(`${String(currentH).padStart(2, '0')}:${String(currentM).padStart(2, '0')}`);
+      const slotMins = currentH * 60 + currentM;
+      const slotEndMins = slotMins + totalDuration;
+
+      // Filter out overlapping slots
+      const overlaps = occupiedRanges.some(range => {
+        return slotMins < range.end && slotEndMins > range.start;
+      });
+
+      if (!overlaps) {
+        slots.push(`${String(currentH).padStart(2, '0')}:${String(currentM).padStart(2, '0')}`);
+      }
+
       currentM += 30;
       if (currentM >= 60) {
         currentH += 1;
-        currentM = 0;
+        currentM -= 60;
       }
     }
 
     return slots;
-  }, [formData.date, businessHours]);
+  }, [formData.date, formData.barber, formData.selectedServices, businessHours, appointments, showExtraHours, servicesList]);
 
   const totalPrice = React.useMemo(() => {
     const servicesTotal = servicesList
@@ -131,7 +180,7 @@ export default function NewAppointmentModal({
       totalPrice,
       serviceId: serviceObj?.id,
       serviceName: serviceObj?.name || "Atendimento Vário",
-      durationMinutes: serviceObj?.durationMinutes || 45,
+      durationMinutes: totalDuration,
       barberId: selectedBarberObj?.id,
       establishmentId,
       clientId: formData.clientId
@@ -140,7 +189,7 @@ export default function NewAppointmentModal({
     setTimeout(() => {
       onClose();
       setStep(1);
-      setFormData({ name: '', phone: '', barber: '', selectedServices: [], selectedProducts: [], date: new Date().getDate().toString(), time: '', clientId: undefined });
+      setFormData({ name: '', phone: '', barber: '', selectedServices: [], selectedProducts: [], date: getLocalDateString(new Date()), time: '', clientId: undefined });
     }, 2000);
   };
 
@@ -247,17 +296,17 @@ export default function NewAppointmentModal({
                       <input 
                         required
                         type="tel" 
-                        maxLength={11}
-                        placeholder="11999990000"
+                        maxLength={14}
+                        placeholder="Ex: 19993644604 ou +5519993644604"
                         value={formData.phone}
                         onChange={e => {
-                          // Allow only numbers
-                          const val = e.target.value.replace(/\D/g, '');
+                          // Allow digits and '+'
+                          const val = e.target.value.replace(/[^\d+]/g, '');
                           setFormData(p => ({ ...p, phone: val }))
                         }}
                         className="w-full px-4 py-3 bg-gray-50 border border-outline rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:outline-hidden transition-all font-medium"
                       />
-                      <p className="text-[10px] text-gray-400 mt-1">Insira apenas números (DDD + 9 dígitos).</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Insira o número com DDD (11 dígitos ou com +55 no início).</p>
                     </label>
 
                     <label className="block">
@@ -281,7 +330,7 @@ export default function NewAppointmentModal({
                   <div className="pt-4">
                     <button 
                       type="button"
-                      disabled={!formData.name || formData.phone.length !== 11 || !formData.barber}
+                      disabled={!formData.name || !/^(?:\+?55)?\d{11}$/.test(formData.phone) || !formData.barber}
                       onClick={() => setStep(2)}
                       className="w-full royal-gradient text-white py-4 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
@@ -398,16 +447,17 @@ export default function NewAppointmentModal({
                           const dayOfMonth = date.getDate().toString();
                           const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
                           const weekday = weekdays[dayOfWeekIndex];
+                          const dateString = getLocalDateString(date);
                           
                           return (
                             <div key={i} className="flex flex-col gap-1 items-center">
                               <span className="text-[10px] font-bold text-gray-400">{weekday}</span>
                               <button
                                 type="button"
-                                onClick={() => setFormData(p => ({ ...p, date: dayOfMonth }))}
+                                onClick={() => setFormData(p => ({ ...p, date: dateString }))}
                                 className={cn(
                                   "py-2 w-full rounded-lg text-xs font-bold transition-all border",
-                                  formData.date === dayOfMonth
+                                  formData.date === dateString
                                     ? "bg-primary border-primary text-white shadow-md shadow-primary/20"
                                     : "bg-gray-50 border-outline text-gray-600 hover:bg-gray-100"
                                 )}
@@ -419,9 +469,18 @@ export default function NewAppointmentModal({
                         })}
                       </div>
 
-                      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-3">
-                        <Clock size={14} className="text-primary" /> Horário
-                      </span>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                          <Clock size={14} className="text-primary" /> Horário
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowExtraHours(!showExtraHours)}
+                          className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md transition-colors", showExtraHours ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}
+                        >
+                          {showExtraHours ? 'Ocultar Extras' : 'Horários Extras'}
+                        </button>
+                      </div>
                       <div className="grid grid-cols-4 gap-2">
                         {availableTimeSlots.map(time => (
                           <button
@@ -439,8 +498,8 @@ export default function NewAppointmentModal({
                           </button>
                         ))}
                         {availableTimeSlots.length === 0 && (
-                          <div className="col-span-4 p-4 text-center text-xs text-red-500 font-bold bg-red-50 rounded-xl">
-                            Barbearia Fechada nesta data.
+                          <div className="col-span-4 p-4 text-center text-xs text-amber-600 font-bold bg-amber-50 rounded-xl">
+                            Nenhum horário disponível nesta data.
                           </div>
                         )}
                       </div>

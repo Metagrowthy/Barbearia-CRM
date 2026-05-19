@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Bell,
   History,
-  DollarSign
+  DollarSign,
+  Layers
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -75,8 +76,7 @@ export default function Sidebar({
     { id: 'clients', icon: Users, label: 'Clientes', roles: ['owner', 'employee'] },
     { id: 'financial', icon: DollarSign, label: 'Controle Financeiro', roles: ['owner'] },
     { id: 'history', icon: History, label: 'Histórico', roles: ['owner', 'employee'] },
-    { id: 'services', icon: Scissors, label: 'Serviços', roles: ['owner'] },
-    { id: 'notifications', icon: Bell, label: 'Notificações', roles: ['owner', 'employee'] },
+    { id: 'services', icon: Layers, label: 'Serviços', roles: ['owner'] },
     { id: 'settings', icon: Settings, label: 'Configurações', roles: ['owner'] },
   ];
 

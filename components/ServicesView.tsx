@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   Scissors, Plus, Search, Edit3, Trash2, CheckCircle, 
-  Beer, Package, X, Clock, DollarSign, Tag, Info, ChevronRight, Save
+  Beer, Package, X, Clock, DollarSign, Tag, Info, ChevronRight, Save, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -38,6 +38,8 @@ interface ServicesViewProps {
   onUpdateSupplies: React.Dispatch<React.SetStateAction<Item[]>>;
   appointments?: any[];
   establishmentId?: string;
+  activeTab?: Category;
+  onTabChange?: (tab: Category) => void;
 }
 
 export default function ServicesView({ 
@@ -48,9 +50,14 @@ export default function ServicesView({
   onUpdateDrinks, 
   onUpdateSupplies,
   appointments = [],
-  establishmentId
+  establishmentId,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange
 }: ServicesViewProps) {
-  const [activeTab, setActiveTab] = React.useState<Category>('services');
+  const [localActiveTab, setLocalActiveTab] = React.useState<Category>('services');
+  
+  const activeTab = propActiveTab !== undefined ? propActiveTab : localActiveTab;
+  const setActiveTab = propOnTabChange !== undefined ? propOnTabChange : setLocalActiveTab;
   
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingItem, setEditingItem] = React.useState<Item | null>(null);
@@ -64,6 +71,20 @@ export default function ServicesView({
     duration: '',
     stock: 0
   });
+
+  const [historyApts, setHistoryApts] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchHistory = async () => {
+      const supabase = getSupabase();
+      if (!supabase || !establishmentId) return;
+      const { data } = await supabase.from('appointments').select('service_id, service_name, status').eq('establishment_id', establishmentId);
+      if (data) {
+        setHistoryApts(data.filter(a => a.status !== 'cancelado'));
+      }
+    };
+    fetchHistory();
+  }, [establishmentId]);
 
   const handleOpenModal = (item?: Item) => {
     if (item) {
@@ -214,7 +235,7 @@ export default function ServicesView({
   };
 
   const tabs = [
-    { id: 'services', label: 'Serviços', icon: Scissors },
+    { id: 'services', label: 'Serviços', icon: Layers },
     { id: 'drinks', label: 'Bebidas', icon: Beer },
     { id: 'supplies', label: 'Produtos/Insumos', icon: Package },
   ];
@@ -327,8 +348,8 @@ export default function ServicesView({
                       <span className="flex items-center gap-1.5 text-green-600"><CheckCircle size={12} /> Ativo</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-[0.1em] mt-1 bg-primary/5 w-fit px-2 py-0.5 rounded">
-                      <Scissors size={10} /> 
-                      {appointments.filter(a => a.service_id === item.id || a.serviceId === item.id || a.service === item.name).length} Atendimentos
+                      <Layers size={10} /> 
+                      {historyApts.filter(a => String(a.service_id) === String(item.id) || (a.service_name && a.service_name.toLowerCase().includes(item.name.toLowerCase()))).length} Atendimentos
                     </div>
                   </div>
                 ) : (

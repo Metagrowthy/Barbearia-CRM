@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Royal Precision CRM',
-  description: 'Gestão de Alta Performance para barbearias',
+  title: 'Meta Growthy CRM',
+  description: 'Gestão Inteligente de Alta Performance para o seu Negócio',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

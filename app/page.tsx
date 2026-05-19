@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, Scissors, Calendar, Users, Briefcase, Zap } from 'lucide-react';
 
 import { getSupabase } from '@/lib/supabase';
-import { createInitialTenantProfile } from '@/app/actions';
+import { createInitialTenantProfile, createEmployeeAccount } from '@/app/actions';
 
 interface InventoryItem {
   id: string | number;
@@ -45,6 +45,9 @@ export default function Home() {
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [sessionEmail, setSessionEmail] = React.useState<string>('admin@barber.com');
   const [activeTab, setActiveTab] = React.useState('dashboard');
+  const [financeTab, setFinanceTab] = React.useState<'overview' | 'flow' | 'commissions' | 'inventory'>('overview');
+  const [servicesTab, setServicesTab] = React.useState<'services' | 'drinks' | 'supplies'>('services');
+  const [settingsSection, setSettingsSection] = React.useState<string>('profile');
   const [timeRange, setTimeRange] = React.useState('Hoje');
   const [globalSearch, setGlobalSearch] = React.useState('');
   const [notification, setNotification] = React.useState<string | null>(null);
@@ -91,7 +94,7 @@ export default function Home() {
           const fullName = session.user.user_metadata?.full_name || 'Dono';
           const shopName = session.user.user_metadata?.shop_name || 'Minha Barbearia';
           
-          const result = await createInitialTenantProfile(session.user.id, fullName, shopName);
+          const result = await createInitialTenantProfile(session.user.id, fullName, shopName, session.user.user_metadata?.cnpj);
           
           if (result.success && result.profile) {
             setUserProfile(result.profile as UserProfile);
@@ -123,7 +126,7 @@ export default function Home() {
             const fullName = session.user.user_metadata?.full_name || 'Dono';
             const shopName = session.user.user_metadata?.shop_name || 'Minha Barbearia';
             
-            const result = await createInitialTenantProfile(session.user.id, fullName, shopName);
+            const result = await createInitialTenantProfile(session.user.id, fullName, shopName, session.user.user_metadata?.cnpj);
             if (result.success && result.profile) {
                setUserProfile(result.profile as UserProfile);
             } else {
@@ -335,6 +338,16 @@ export default function Home() {
             if (updateErr) {
               console.error("Error updating barber:", updateErr);
               alert("Erro ao atualizar funcionário " + barber.name + ": " + updateErr.message);
+            } else {
+              // Generate access if requested
+              if (barber.access_email && barber.access_password && !barber.has_access) {
+                const res = await createEmployeeAccount(barber.access_email, barber.access_password, barber.name, userProfile.establishment_id);
+                if (res.success) {
+                  alert(`Acesso gerado com sucesso para ${barber.name}!`);
+                } else {
+                  alert(`Erro ao criar acesso para ${barber.name}: ${res.error}`);
+                }
+              }
             }
           } else if (barber.id && barber.id.toString().startsWith('new-')) {
             // New barber - insert and we'll refresh later
@@ -350,6 +363,16 @@ export default function Home() {
             if (insertErr) {
               console.error("Error inserting barber:", insertErr);
               alert("Erro ao criar funcionário " + barber.name + ": " + insertErr.message);
+            } else {
+              // Generate access if requested for new barber
+              if (barber.access_email && barber.access_password && !barber.has_access) {
+                const res = await createEmployeeAccount(barber.access_email, barber.access_password, barber.name, userProfile.establishment_id);
+                if (res.success) {
+                  alert(`Acesso gerado com sucesso para ${barber.name}!`);
+                } else {
+                  alert(`Erro ao criar acesso para ${barber.name}: ${res.error}`);
+                }
+              }
             }
           }
         }
@@ -363,7 +386,10 @@ export default function Home() {
              id: b.id,
              name: b.name,
              specialty: b.specialty,
-             color: b.color || 'bg-primary'
+             color: b.color || 'bg-primary',
+             commission_type: b.commission_type,
+             commission_rate: b.commission_rate,
+             commission_fixed_value: b.commission_fixed_value
            })));
         }
       } catch (err) {
@@ -380,11 +406,12 @@ export default function Home() {
        const hoursToUpsert = newHours.map(h => {
          const { id, created_at, ...rest } = h;
          const base = { ...rest, establishment_id: userProfile.establishment_id };
-         if (id && id.toString().length > 20) return { id, ...base };
          return base;
        });
 
+       // Uses the correct SaaS multi-tenant constraint
        const { error } = await supabase.from('business_hours').upsert(hoursToUpsert, { onConflict: 'day_of_week,establishment_id' });
+       
        if (error) {
          console.error('Error updating business hours:', error.message || error);
          showNotification('Erro ao salvar horários');
@@ -416,6 +443,7 @@ export default function Home() {
     let clientsQuery = supabase.from('clients').select('*');
     let finQuery = supabase.from('financial_records').select('*');
     let estQuery = supabase.from('establishments').select('*');
+    let profilesQuery = supabase.from('profiles').select('full_name, role').eq('role', 'employee');
 
     // Filter by establishment if profile exists
     if (userProfile?.establishment_id) {
@@ -427,6 +455,7 @@ export default function Home() {
       clientsQuery = clientsQuery.eq('establishment_id', userProfile.establishment_id);
       finQuery = finQuery.eq('establishment_id', userProfile.establishment_id);
       estQuery = estQuery.eq('id', userProfile.establishment_id);
+      profilesQuery = profilesQuery.eq('establishment_id', userProfile.establishment_id);
     } else {
       // If no establishment_id, we shouldn't fetch any tenant-specific data
       setAppointments([]);
@@ -439,7 +468,7 @@ export default function Home() {
       return;
     }
 
-    const [invResponse, srvResponse, aptResponse, barberResponse, hoursResponse, clientsRes, finRes, estRes] = await Promise.all([
+    const [invResponse, srvResponse, aptResponse, barberResponse, hoursResponse, clientsRes, finRes, estRes, profilesRes] = await Promise.all([
       invQuery,
       srvQuery,
       aptQuery,
@@ -447,7 +476,8 @@ export default function Home() {
       hoursQuery,
       clientsQuery,
       finQuery,
-      estQuery
+      estQuery,
+      profilesQuery
     ]);
 
     if (estRes.error) {
@@ -457,6 +487,9 @@ export default function Home() {
       const settings = est.settings || {};
       setShopProfile(prev => ({
         ...prev,
+        id: est.id,
+        subscription_status: est.subscription_status,
+        created_at: est.created_at,
         name: est.name || prev.name,
         ...settings
       }));
@@ -520,12 +553,18 @@ export default function Home() {
     if (barberResponse.error) {
       console.error('Error fetching barbers:', barberResponse.error);
     } else if (barberResponse.data) {
+      const activeEmployeeNames = (profilesRes?.data || []).map((p: any) => p.full_name);
+
       // Map DB barbers to UI format
       const mappedBarbers = barberResponse.data.map((b: any) => ({
         id: b.id,
         name: b.name,
         specialty: b.specialty,
-        color: b.color || 'bg-primary'
+        color: b.color || 'bg-primary',
+        commission_type: b.commission_type,
+        commission_rate: b.commission_rate,
+        commission_fixed_value: b.commission_fixed_value,
+        has_access: activeEmployeeNames.includes(b.name)
       }));
       setBarbers(mappedBarbers);
     }
@@ -622,18 +661,15 @@ export default function Home() {
   }, [fetchData, userProfile]);
 
   // Notifications State
-  const [baseNotifications, setBaseNotifications] = React.useState([
-    { id: 'app-1', title: 'Novo Agendamento', message: 'Arthur Morgan marcou um Corte + Barba para às 09:00.', time: '5m atrás', unread: true },
-    { id: 'pay-1', title: 'Pagamento Confirmado', message: 'Recebimento de R$ 85,00 via PIX (John Marston).', time: '2h atrás', unread: false },
-  ]);
+  const [baseNotifications, setBaseNotifications] = React.useState<any[]>([]);
 
   // Combined Notifications (Base + Dynamic Stock)
   const allNotifications = React.useMemo(() => {
     const lowStockNotifications = [...drinks, ...supplies]
-      .filter(item => item.stock !== undefined && item.stock <= 5)
+      .filter(item => item.stock !== undefined && item.stock < 10)
       .map(item => ({
         id: `stock-${item.id}`,
-        title: 'Crítico: Estoque Baixo',
+        title: 'Alerta de Estoque',
         message: `${item.name} está com apenas ${item.stock} unidades. Reabasteça logo!`,
         time: 'Agora',
         unread: true,
@@ -710,8 +746,8 @@ export default function Home() {
         service: serviceName,
         time: data.time,
         durationMinutes: duration,
-        day: parseInt(data.date, 10) || new Date().getDate(),
-        fullDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(parseInt(data.date) || new Date().getDate()).padStart(2, '0')}`,
+        day: parseInt(data.date.split('-')[2], 10) || new Date().getDate(),
+        fullDate: data.date,
         colorClass: data.colorClass || "bg-primary/10 border-primary text-primary",
         status: "confirmado",
         price: `R$ ${data.totalPrice},00`,
@@ -719,6 +755,13 @@ export default function Home() {
       };
 
     setAppointments(prev => [...prev, newAppointmentUI]);
+    setBaseNotifications(prev => [{
+      id: `app-${Date.now()}`,
+      title: 'Novo Agendamento',
+      message: `${data.name} marcou ${serviceName} para às ${data.time}.`,
+      time: 'Agora',
+      unread: true
+    }, ...prev]);
     showNotification("Atendimento criado com sucesso na agenda!");
 
     // Database Payload (Formatted for your exact Supabase schema)
@@ -751,15 +794,13 @@ export default function Home() {
       const endMinutes = totalMinutes % 60;
       const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}:00`;
 
-    const now = new Date();
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const dbPayload: any = {
         client_name: newAppointmentUI.client,
+        client_phone: data.phone,
         barber_name: newAppointmentUI.barber,
         service_name: newAppointmentUI.service,
-        client_id: clientId,
         establishment_id: establishmentId,
-        appointment_date: `${currentYearMonth}-${String(newAppointmentUI.day).padStart(2, '0')}`,
+        appointment_date: newAppointmentUI.fullDate,
         start_time: `${newAppointmentUI.time}:00`,
         end_time: endTimeStr,
         duration_minutes: newAppointmentUI.durationMinutes,
@@ -816,51 +857,50 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <KPIStats timeRange={timeRange} appointments={appointments} />
+            <KPIStats timeRange={timeRange} appointments={userProfile?.role === 'employee' && userProfile?.full_name ? appointments.filter(a => a.barber === userProfile.full_name) : appointments} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <AppointmentsTable 
                   appointments={appointments.filter(a => {
                     const todayStr = new Date().toISOString().split('T')[0];
-                    return a.fullDate === todayStr || a.day === new Date().getDate();
+                    const isToday = a.fullDate === todayStr || a.day === new Date().getDate();
+                    if (userProfile?.role === 'employee' && userProfile?.full_name) {
+                       return isToday && a.barber === userProfile.full_name;
+                    }
+                    return isToday;
                   })} 
                   onSeeAll={() => setActiveTab('calendar')} 
+                  onDeleteAppointment={async (id) => {
+                    const supabase = getSupabase();
+                    if (supabase) {
+                      const { error } = await supabase.from('appointments').delete().eq('id', id);
+                      if (!error) {
+                        setAppointments(prev => prev.filter(a => a.id !== id));
+                        showNotification('Agendamento excluído com sucesso!');
+                      } else {
+                        console.error('Error deleting:', error);
+                      }
+                    }
+                  }}
+                  onUpdateStatus={async (id, status) => {
+                    const supabase = getSupabase();
+                    if (supabase) {
+                      const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
+                      if (!error) {
+                        setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+                        showNotification(`Status atualizado para ${status}!`);
+                      } else {
+                        console.error('Error updating status:', error);
+                      }
+                    }
+                  }}
                 />
               </div>
               <div className="lg:col-span-1">
-                <RecentClients appointments={appointments} onNewClient={() => setIsNewAppointmentOpen(true)} />
+                <RecentClients appointments={userProfile?.role === 'employee' && userProfile?.full_name ? appointments.filter(a => a.barber === userProfile.full_name) : appointments} onNewClient={() => setIsNewAppointmentOpen(true)} />
               </div>
             </div>
-
-            {/* AI Insights Section */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="mt-8 p-6 royal-gradient rounded-xl text-white relative overflow-hidden shadow-xl shadow-primary/20"
-            >
-              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="max-w-2xl">
-                  <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
-                    <Zap size={20} className="text-amber-300" /> Insight de Performance (AI)
-                  </h3>
-                  <p className="text-sm text-blue-100 leading-relaxed font-medium">
-                    Notamos uma alta demanda por cortes &quot;Degradê&quot; às Quartas-feiras à tarde. 
-                    Sugestão: Ofereça um combo especial &quot;Barba + Corte&quot; entre 14h e 17h para aumentar o ticket médio em 15%.
-                  </p>
-                </div>
-                <button 
-                  onClick={() => showNotification("Estratégia aplicada com sucesso!")}
-                  className="bg-white text-primary px-6 py-2.5 rounded-lg text-sm font-bold shadow-md hover:bg-blue-50 transition-all whitespace-nowrap active:scale-95"
-                >
-                  Aplicar Estratégia
-                </button>
-              </div>
-              
-              <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-              <div className="absolute bottom-[-20px] left-[20%] w-24 h-24 bg-blue-200/10 rounded-full blur-xl" />
-            </motion.div>
           </div>
         );
       case 'calendar':
@@ -868,6 +908,7 @@ export default function Home() {
           <CalendarView 
             appointments={appointments} 
             barbersList={barbers}
+            userProfile={userProfile}
             onNewAppointment={() => setIsNewAppointmentOpen(true)} 
           />
         );
@@ -887,6 +928,8 @@ export default function Home() {
             inventory={{ drinks, supplies }}
             onUpdateBarbers={handleUpdateBarbers}
             establishmentId={userProfile?.establishment_id}
+            activeTab={financeTab}
+            onTabChange={setFinanceTab}
           />
         );
       case 'history':
@@ -895,6 +938,7 @@ export default function Home() {
           services={services} 
           inventory={{ drinks, supplies }}
           establishmentId={userProfile?.establishment_id}
+          userProfile={userProfile}
         />;
       case 'services':
         if (userProfile?.role === 'employee') {
@@ -910,6 +954,8 @@ export default function Home() {
           onUpdateSupplies={setSupplies}
           appointments={appointments}
           establishmentId={userProfile?.establishment_id}
+          activeTab={servicesTab}
+          onTabChange={setServicesTab}
         />;
       case 'notifications':
         return <NotificationsView 
@@ -937,6 +983,8 @@ export default function Home() {
           onUpdateBusinessHours={handleUpdateBusinessHours}
           onUpdateBarbers={handleUpdateBarbers}
           onProfileUpdate={handleUpdateProfile} 
+          activeSection={settingsSection}
+          onSectionChange={setSettingsSection}
           onThemeUpdate={(newTheme) => {
             setThemeConfig(prev => {
               const updated = { ...prev, ...newTheme };
@@ -1053,7 +1101,57 @@ export default function Home() {
           userEmail={sessionEmail}
           onSearch={(q) => {
             setGlobalSearch(q);
-            if (q.length > 2) showNotification(`Buscando por: "${q}"...`);
+            const qLower = q.toLowerCase();
+            
+            // 1. Configurações
+            if (qLower.includes('config') || qLower.includes('perfil') || qLower.includes('equipe') || qLower.includes('funcionário') || qLower.includes('funcionario') || qLower.includes('horário') || qLower.includes('horario') || qLower.includes('faturam') || qLower.includes('personaliz')) {
+              setActiveTab('settings');
+              if (qLower.includes('perfil') || qLower.includes('negócio') || qLower.includes('negocio')) {
+                setSettingsSection('profile');
+              } else if (qLower.includes('equipe') || qLower.includes('funcionário') || qLower.includes('funcionario')) {
+                setSettingsSection('barbers');
+              } else if (qLower.includes('horário') || qLower.includes('horario') || qLower.includes('funcionamento')) {
+                setSettingsSection('hours');
+              } else if (qLower.includes('faturam') || qLower.includes('assinatura') || qLower.includes('pagamento')) {
+                setSettingsSection('billing');
+              } else if (qLower.includes('personaliz') || qLower.includes('tema') || qLower.includes('layout')) {
+                setSettingsSection('theme');
+              }
+            } 
+            // 2. Controle Financeiro
+            else if (qLower.includes('finan') || qLower.includes('caixa') || qLower.includes('fluxo') || qLower.includes('visão') || qLower.includes('visao') || qLower.includes('comiss') || qLower.includes('estoque') || qLower.includes('insumo')) {
+              setActiveTab('financial');
+              if (qLower.includes('fluxo')) {
+                setFinanceTab('flow');
+              } else if (qLower.includes('comiss')) {
+                setFinanceTab('commissions');
+              } else if (qLower.includes('estoque') || qLower.includes('insumo')) {
+                setFinanceTab('inventory');
+              } else if (qLower.includes('visão') || qLower.includes('visao') || qLower.includes('geral')) {
+                setFinanceTab('overview');
+              }
+            } 
+            // 3. Serviços
+            else if (qLower.includes('serviç') || qLower.includes('servic') || qLower.includes('bebida') || qLower.includes('produto')) {
+              setActiveTab('services');
+              if (qLower.includes('bebida')) {
+                setServicesTab('drinks');
+              } else if (qLower.includes('produto') || qLower.includes('insumo')) {
+                setServicesTab('supplies');
+              } else {
+                setServicesTab('services');
+              }
+            } 
+            // 4. Outros
+            else if (qLower.includes('cliente')) {
+              setActiveTab('clients');
+            } else if (qLower.includes('históric') || qLower.includes('historic')) {
+              setActiveTab('history');
+            } else if (qLower.includes('agend') || qLower.includes('calend')) {
+              setActiveTab('calendar');
+            } else if (qLower.includes('dash') || qLower.includes('inicio') || qLower.includes('início')) {
+              setActiveTab('dashboard');
+            }
           }} 
           onNewAppointment={() => setIsNewAppointmentOpen(true)}
           onNotificationClick={() => showNotification("Você tem 3 novas notificações de agendamentos")}
@@ -1087,6 +1185,7 @@ export default function Home() {
         inventoryList={[...drinks, ...supplies]}
         businessHours={businessHours}
         clientsList={clients}
+        appointments={appointments}
         establishmentId={userProfile?.establishment_id}
       />
 
