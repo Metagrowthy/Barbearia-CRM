@@ -80,7 +80,7 @@ export default function ServicesView({
       if (!supabase || !establishmentId) return;
       const { data } = await supabase.from('appointments').select('service_id, service_name, status').eq('establishment_id', establishmentId);
       if (data) {
-        setHistoryApts(data.filter(a => a.status !== 'cancelado'));
+        setHistoryApts(data.filter((a: any) => a.status !== 'cancelado'));
       }
     };
     fetchHistory();
