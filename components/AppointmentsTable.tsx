@@ -42,9 +42,10 @@ interface AppointmentsTableProps {
   onSeeAll?: () => void;
   appointments?: any[];
   onDeleteAppointment?: (id: number) => void;
+  onUpdateStatus?: (id: any, status: any) => Promise<void> | void;
 }
 
-export default function AppointmentsTable({ onSeeAll, appointments: externalAppointments, onDeleteAppointment }: AppointmentsTableProps) {
+export default function AppointmentsTable({ onSeeAll, appointments: externalAppointments, onDeleteAppointment, onUpdateStatus }: AppointmentsTableProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [hideCompleted, setHideCompleted] = React.useState(false);
 
