@@ -197,6 +197,7 @@ export async function POST(request: Request) {
       price: price || 0,
       color_class: "bg-blue-50 border-blue-400 text-blue-700", // color default from n8n 
       status: "confirmado",
+      source: "online"
     };
 
     const { data: insertedData, error } = await supabase
