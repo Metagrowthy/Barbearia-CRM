@@ -7,11 +7,12 @@ import {
   Users,
   Instagram, MessageCircle, Mail, Lock, Eye, EyeOff, LayoutTemplate,
   Palette, Camera, ExternalLink, Trash2, Plus, Code, Link, Zap, Scissors,
-  Clock, ChevronRight, Loader2, ShieldCheck
+  Clock, ChevronRight, Loader2, ShieldCheck, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { NICHES, getNicheConfig } from '@/lib/niches';
 
 const settingsSections = [
   { id: 'profile', icon: UserCircle, title: 'Perfil do negócio', desc: 'Informações básicas, logo e contatos.' },
@@ -27,11 +28,12 @@ interface SettingsViewProps {
     primaryColor: string;
     layout: 'modern' | 'classic';
     bgTheme?: string;
+    niche?: string;
   };
   barbers?: any[];
   onUpdateBarbers?: (barbers: any[]) => void;
   onProfileUpdate: (newProfile: any) => void;
-  onThemeUpdate: (newTheme: { primaryColor?: string; layout?: 'modern' | 'classic'; bgTheme?: string }) => void;
+  onThemeUpdate: (newTheme: { primaryColor?: string; layout?: 'modern' | 'classic'; bgTheme?: string; niche?: string }) => void;
   externalHours?: any[];
   onUpdateBusinessHours?: (hours: any[]) => void;
   activeSection?: string;
@@ -93,7 +95,18 @@ export default function SettingsView({
   const [selectedColor, setSelectedColor] = React.useState(initialTheme.primaryColor);
   const [selectedLayout, setSelectedLayout] = React.useState<'modern' | 'classic'>(initialTheme.layout);
   const [selectedBgTheme, setSelectedBgTheme] = React.useState(initialTheme.bgTheme || 'original');
+  const [selectedNiche, setSelectedNiche] = React.useState(initialTheme.niche || 'barbershop');
   const [localBarbers, setLocalBarbers] = React.useState(externalBarbers || []);
+
+  // Sync localTheme when initialTheme changes
+  React.useEffect(() => {
+    if (initialTheme) {
+      setSelectedColor(initialTheme.primaryColor);
+      setSelectedLayout(initialTheme.layout);
+      setSelectedBgTheme(initialTheme.bgTheme || 'original');
+      setSelectedNiche(initialTheme.niche || 'barbershop');
+    }
+  }, [initialTheme]);
 
   // Sync localBarbers when externalBarbers is loaded
   const hasLoadedExternal = React.useRef(false);
@@ -109,22 +122,39 @@ export default function SettingsView({
     { id: 'cinza-profissional', name: 'Cinza Profissional', colors: { main: '#2c3e50', secondary: '#34495e' } },
   ];
 
+  const handleNicheChange = (nicheId: string) => {
+    setSelectedNiche(nicheId);
+    
+    // Automatically set the recommended color
+    const nicheConfig = NICHES.find(n => n.id === nicheId) || NICHES[0];
+    const newColor = nicheConfig.primaryColor;
+    setSelectedColor(newColor);
+
+    // Instant update
+    onThemeUpdate({ 
+      primaryColor: newColor, 
+      bgTheme: selectedBgTheme, 
+      layout: selectedLayout, 
+      niche: nicheId 
+    });
+  };
+
   const handleColorChange = (color: string) => {
     setSelectedColor(color);
     // Instant update
-    onThemeUpdate({ primaryColor: color, bgTheme: selectedBgTheme, layout: selectedLayout });
+    onThemeUpdate({ primaryColor: color, bgTheme: selectedBgTheme, layout: selectedLayout, niche: selectedNiche });
   };
 
   const handleLayoutChange = (layout: 'modern' | 'classic') => {
     setSelectedLayout(layout);
     // Instant update
-    onThemeUpdate({ primaryColor: selectedColor, layout: layout, bgTheme: selectedBgTheme });
+    onThemeUpdate({ primaryColor: selectedColor, layout: layout, bgTheme: selectedBgTheme, niche: selectedNiche });
   };
 
   const handleBgThemeChange = (themeId: string) => {
     setSelectedBgTheme(themeId);
     // Instant update
-    onThemeUpdate({ primaryColor: selectedColor, layout: selectedLayout, bgTheme: themeId });
+    onThemeUpdate({ primaryColor: selectedColor, layout: selectedLayout, bgTheme: themeId, niche: selectedNiche });
   };
 
   // State for Billing (Cards)
@@ -144,7 +174,8 @@ export default function SettingsView({
       onThemeUpdate({
         primaryColor: selectedColor,
         layout: selectedLayout,
-        bgTheme: selectedBgTheme
+        bgTheme: selectedBgTheme,
+        niche: selectedNiche
       });
       if (onUpdateBarbers) {
         onUpdateBarbers(localBarbers);
@@ -425,6 +456,7 @@ export default function SettingsView({
                           <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">E-mail de Login</label>
                           <input 
                             type="email" 
+                            autoComplete="new-email"
                             placeholder="funcionario@barbearia.com"
                             value={barber.access_email || ''} 
                             onChange={(e) => updateBarberField(barber.id, 'access_email', e.target.value)}
@@ -435,6 +467,7 @@ export default function SettingsView({
                           <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">Senha Provisória</label>
                           <input 
                             type="password" 
+                            autoComplete="new-password"
                             placeholder="Mínimo 6 caracteres"
                             value={barber.access_password || ''} 
                             onChange={(e) => updateBarberField(barber.id, 'access_password', e.target.value)}
@@ -448,9 +481,96 @@ export default function SettingsView({
                         </div>
                       </>
                     ) : (
-                      <div className="col-span-1 md:col-span-2 text-[10px] text-gray-500 font-medium">
-                        Este funcionário já possui acesso ativo ao sistema. Se ele esqueceu a senha, peça para ele utilizar a opção "Esqueci minha senha" na tela de login inicial.
-                      </div>
+                      <>
+                        <div className="space-y-1.5 col-span-1 md:col-span-2">
+                          <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">E-mail de Acesso</label>
+                          <input 
+                            type="email" 
+                            autoComplete="new-email"
+                            placeholder="funcionario@barbearia.com"
+                            value={barber.email || ''} 
+                            onChange={(e) => updateBarberField(barber.id, 'email', e.target.value)}
+                            className="w-full px-4 py-2 bg-white border border-outline rounded-xl text-xs font-semibold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-muted-theme uppercase tracking-widest block">Nova Senha (Opcional)</label>
+                          <input 
+                            type="password" 
+                            autoComplete="new-password"
+                            placeholder="Digite a nova senha se quiser alterar"
+                            value={barber.new_password || ''} 
+                            onChange={(e) => updateBarberField(barber.id, 'new_password', e.target.value)}
+                            className="w-full px-4 py-2 bg-white border border-outline rounded-xl text-xs font-medium focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                          />
+                        </div>
+                        <div className="flex items-end mb-4">
+                          <button
+                            onClick={async () => {
+                              if (!barber.profile_id) {
+                                alert("Erro: Perfil do usuário não carregado corretamente.");
+                                return;
+                              }
+                              
+                              if (barber.new_password && barber.new_password.length < 6) {
+                                alert("A senha deve ter no mínimo 6 caracteres.");
+                                return;
+                              }
+                              
+                              try {
+                                const { updateProfileCredentials } = await import('@/app/actions');
+                                const res = await updateProfileCredentials(
+                                  barber.profile_id,
+                                  barber.email || undefined,
+                                  barber.new_password || undefined
+                                );
+                                if (res.success) {
+                                  alert("Credenciais de acesso atualizadas com sucesso!");
+                                  updateBarberField(barber.id, 'new_password', '');
+                                } else {
+                                  alert("Erro ao salvar: " + res.error);
+                                }
+                              } catch (err: any) {
+                                alert("Erro: " + err.message);
+                              }
+                            }}
+                            className="h-9 px-4 bg-primary hover:bg-primary-dark text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm"
+                          >
+                            Salvar Credenciais
+                          </button>
+                        </div>
+                        <div className="col-span-1 md:col-span-2 pt-3 border-t border-outline flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Nível de Acesso</p>
+                            <p className="text-[9px] text-gray-500 mt-1">Donos têm acesso total às configurações e faturamento.</p>
+                          </div>
+                          <select 
+                            value={barber.role || 'employee'}
+                            onChange={async (e) => {
+                              const newRole = e.target.value;
+                              updateBarberField(barber.id, 'role', newRole);
+                              try {
+                                const { updateEmployeeRole } = await import('@/app/actions');
+                                const res = await updateEmployeeRole(barber.name, newRole, initialProfile.id || initialProfile.establishment_id);
+                                if (res.success) {
+                                  alert(newRole === 'owner' ? "Acesso de Dono concedido!" : "Acesso alterado para Funcionário.");
+                                } else {
+                                  alert("Erro ao alterar acesso: " + res.error);
+                                }
+                              } catch (err: any) {
+                                alert("Erro: " + err.message);
+                              }
+                            }}
+                            className="bg-white border border-outline rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-hidden"
+                          >
+                            <option value="employee">Funcionário</option>
+                            <option value="owner">Dono</option>
+                          </select>
+                        </div>
+                        <div className="col-span-1 md:col-span-2 text-[10px] text-gray-500 font-medium mt-2">
+                          Este funcionário já possui acesso ativo ao sistema. Você pode alterar o e-mail ou a senha dele acima.
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -691,6 +811,49 @@ export default function SettingsView({
 
   const renderTheme = () => (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div>
+        <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-4 flex items-center gap-2">
+          <Layers size={14} /> Nicho de Atuação do Negócio
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+          {NICHES.map(n => {
+            const NicheIcon = n.icon;
+            const isSelected = selectedNiche === n.id;
+            return (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => handleNicheChange(n.id)}
+                className={cn(
+                  "p-3 rounded-2xl border-2 transition-all flex items-center gap-3 text-left group hover:scale-[1.02] active:scale-95",
+                  isSelected 
+                    ? "border-primary bg-primary/5 shadow-md shadow-primary/5" 
+                    : "border-outline bg-white hover:border-gray-300"
+                )}
+              >
+                <div 
+                  className={cn(
+                    "p-2.5 rounded-xl transition-colors shrink-0",
+                    isSelected ? "bg-primary text-white animate-pulse" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200 group-hover:text-gray-600"
+                  )}
+                  style={isSelected ? { backgroundColor: n.primaryColor } : {}}
+                >
+                  <NicheIcon size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-[11px] sm:text-xs font-black leading-tight break-words", isSelected ? "text-primary" : "text-gray-700")}>
+                    {n.name}
+                  </p>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase mt-0.5 truncate">
+                    {n.employeeLabelPlural}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-4 flex items-center gap-2">
           <Palette size={14} /> Cor Primária da Marca

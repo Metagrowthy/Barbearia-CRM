@@ -12,7 +12,13 @@ import {
   Bell,
   History,
   DollarSign,
-  Layers
+  Layers,
+  PawPrint,
+  Dumbbell,
+  Flower2,
+  Sparkles,
+  Paintbrush,
+  HeartPulse
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -56,6 +62,8 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onLogout?: () => void;
+  onProfileClick?: () => void;
+  niche?: string;
 }
 
 export default function Sidebar({ 
@@ -68,18 +76,41 @@ export default function Sidebar({
   layout = 'modern',
   isOpen = false,
   onClose,
-  onLogout
+  onLogout,
+  onProfileClick,
+  niche = 'barbershop'
 }: SidebarProps) {
-  const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'calendar', icon: Calendar, label: 'Agenda', roles: ['owner', 'employee'] },
-    { id: 'clients', icon: Users, label: 'Clientes', roles: ['owner', 'employee'] },
-    { id: 'financial', icon: DollarSign, label: 'Controle Financeiro', roles: ['owner'] },
-    { id: 'history', icon: History, label: 'Histórico', roles: ['owner', 'employee'] },
-    { id: 'services', icon: Layers, label: 'Serviços', roles: ['owner'] },
-    { id: 'settings', icon: Settings, label: 'Configurações', roles: ['owner'] },
-  ];
+  const getDynamicNavItems = () => {
+    return [
+      { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { id: 'calendar', icon: Calendar, label: 'Agenda', roles: ['owner', 'employee'] },
+      { 
+        id: 'clients', 
+        icon: niche === 'vet_pet' ? PawPrint : Users, 
+        label: niche === 'vet_pet' ? 'Pets & Clientes' : 'Clientes', 
+        roles: ['owner', 'employee'] 
+      },
+      { id: 'financial', icon: DollarSign, label: 'Controle Financeiro', roles: ['owner'] },
+      { id: 'history', icon: History, label: 'Histórico', roles: ['owner', 'employee'] },
+      { 
+        id: 'services', 
+        icon: niche === 'barbershop' ? Scissors 
+              : niche === 'tattoo' ? Paintbrush 
+              : niche === 'personal_trainer' ? Dumbbell 
+              : niche === 'pilates_yoga' ? Flower2 
+              : niche === 'vet_pet' ? HeartPulse 
+              : Sparkles, 
+        label: niche === 'vet_pet' ? 'Serviços & Banhos' 
+               : niche === 'pilates_yoga' ? 'Aulas & Serviços' 
+               : niche === 'personal_trainer' ? 'Treinador / Aulas' 
+               : 'Serviços', 
+        roles: ['owner'] 
+      },
+      { id: 'settings', icon: Settings, label: 'Configurações', roles: ['owner'] },
+    ];
+  };
 
+  const navItems = getDynamicNavItems();
   const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(userRole));
 
   return (
@@ -140,14 +171,26 @@ export default function Sidebar({
 
       <div className="pt-4 border-t border-outline">
         <SidebarItem icon={LogOut} label="Sair" onClick={onLogout} />
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-black shadow-sm">
+        <div 
+          onClick={onProfileClick}
+          className="mt-4 p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer rounded-lg flex items-center gap-3 transition-all active:scale-[0.98] border border-transparent hover:border-outline/50 group"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-black shadow-sm group-hover:scale-105 transition-transform">
             {userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-black text-gray-900 truncate">{userName}</p>
+            <p className="text-xs font-black text-gray-900 truncate group-hover:text-primary transition-colors">{userName}</p>
             <p className="text-[10px] text-muted-theme font-bold uppercase tracking-tight">
-              {userRole === 'owner' ? 'Dono / Administrador' : 'Funcionário'}
+              {userRole === 'owner' ? 'Dono / Administrador' : (
+                niche === 'barbershop' ? 'Barbeiro'
+                : niche === 'tattoo' ? 'Tatuador / Artista'
+                : niche === 'personal_trainer' ? 'Treinador'
+                : niche === 'pilates_yoga' ? 'Instrutor'
+                : niche === 'lash_beauty' ? 'Designer'
+                : niche === 'nails' ? 'Nail Designer'
+                : niche === 'vet_pet' ? 'Veterinário / Tosador'
+                : 'Funcionário'
+              )}
             </p>
           </div>
         </div>

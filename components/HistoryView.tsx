@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { History, Search, Download, Filter, MoreHorizontal, MessageSquare, AlertCircle, CheckCircle2, Clock, Edit2, X, Save, Scissors, Briefcase } from 'lucide-react';
+import { History, Search, Download, Filter, MoreHorizontal, MessageSquare, AlertCircle, CheckCircle2, Clock, Edit2, X, Save, Scissors, Briefcase, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase';
@@ -34,6 +34,7 @@ export default function HistoryView({
   const [selectedApt, setSelectedApt] = React.useState<any>(null);
   const [selectedServices, setSelectedServices] = React.useState<string[]>([]);
   const [productsQuantities, setProductsQuantities] = React.useState<Record<string, number>>({});
+  const [additionalAmount, setAdditionalAmount] = React.useState<number>(0);
   const [isSaving, setIsSaving] = React.useState(false);
 
   const performFetch = React.useCallback(async () => {
@@ -92,6 +93,7 @@ export default function HistoryView({
     const initialServiceId = services.find(s => s.name === apt.service_name)?.id;
     setSelectedServices(initialServiceId ? [initialServiceId] : []);
     setProductsQuantities({});
+    setAdditionalAmount(Number(apt.additional_price || 0));
     setIsModalOpen(true);
   };
 
@@ -160,7 +162,8 @@ export default function HistoryView({
 
       const finPayload = {
         description: `Atendimento: ${apt.client_name || 'Cliente'}`,
-        amount: Number(apt.price),
+        amount: Number(apt.price) + Number(apt.additional_price || 0),
+        additional_price: Number(apt.additional_price || 0),
         type: 'income',
         category: 'Serviço',
         date: apt.appointment_date,
@@ -216,6 +219,7 @@ export default function HistoryView({
       // 1. Update Appointment
       const updatePayload: any = {
         price: Number(total),
+        additional_price: Number(additionalAmount),
         service_name: finalServiceName,
         status: 'concluido'
       };
@@ -264,7 +268,8 @@ export default function HistoryView({
 
       const finPayload = {
         description: `Atendimento: ${selectedApt.client_name || 'Cliente'}`,
-        amount: Number(total),
+        amount: Number(total) + Number(additionalAmount),
+        additional_price: Number(additionalAmount),
         type: 'income',
         category: 'Serviço',
         date: selectedApt.appointment_date,
@@ -595,13 +600,38 @@ export default function HistoryView({
                     })}
                   </div>
                 </section>
+
+                {/* Additional Value Section */}
+                <section className="bg-primary/[0.02] p-5 rounded-2xl border border-primary/10">
+                  <div className="flex items-center gap-2 mb-4">
+                    <DollarSign className="text-primary" size={16} />
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-700">Valor Adicional (Gorjeta / Extra)</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+                      Caso o cliente tenha pago um valor extra voluntário (gorjeta, caixinha ou adicional), registre abaixo para casar com o fluxo de caixa.
+                    </p>
+                    <div className="relative mt-2 max-w-[200px]">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-gray-400">R$</span>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.01"
+                        placeholder="0,00"
+                        value={additionalAmount || ''} 
+                        onChange={(e) => setAdditionalAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-outline rounded-xl text-sm font-black focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                      />
+                    </div>
+                  </div>
+                </section>
               </div>
 
               {/* Footer */}
               <div className="p-6 border-t border-outline bg-gray-50 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total do Atendimento</p>
-                  <p className="text-2xl font-black text-primary">R$ {calculateTotal().toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-2xl font-black text-primary">R$ {(calculateTotal() + Number(additionalAmount)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <button 
                   onClick={handleSaveAdjustment}

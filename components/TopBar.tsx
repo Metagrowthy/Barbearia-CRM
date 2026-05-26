@@ -12,6 +12,7 @@ interface TopBarProps {
   onNotificationClick?: () => void;
   onHelpClick?: () => void;
   onSettingsClick?: () => void;
+  onProfileSettingsClick?: () => void;
   onMenuToggle?: () => void;
   shopName: string;
   shopLogo: string;
@@ -22,6 +23,7 @@ interface TopBarProps {
   onHistoryClick?: () => void;
   userName?: string;
   userEmail?: string;
+  userRole?: 'owner' | 'employee';
 }
 
 export default function TopBar({ 
@@ -30,6 +32,7 @@ export default function TopBar({
   onNotificationClick, 
   onHelpClick, 
   onSettingsClick,
+  onProfileSettingsClick,
   onMenuToggle,
   shopName,
   shopLogo,
@@ -39,7 +42,8 @@ export default function TopBar({
   onLogout,
   onHistoryClick,
   userName = 'Dono da Barbearia',
-  userEmail = 'admin@barber.com'
+  userEmail = 'admin@barber.com',
+  userRole = 'owner'
 }: TopBarProps) {
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
@@ -165,12 +169,14 @@ export default function TopBar({
             </AnimatePresence>
           </div>
 
-          <button 
-            onClick={onSettingsClick}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-all hidden sm:block"
-          >
-            <Settings size={20} />
-          </button>
+          {userRole === 'owner' && (
+            <button 
+              onClick={onSettingsClick}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-all hidden sm:block"
+            >
+              <Settings size={20} />
+            </button>
+          )}
         </div>
 
         <div className="relative">
@@ -215,7 +221,7 @@ export default function TopBar({
                   
                   <div className="space-y-1">
                     {[
-                      { icon: Settings, label: 'Configurações do Perfil', action: onSettingsClick },
+                      { icon: Settings, label: 'Configurações do Perfil', action: onProfileSettingsClick || onSettingsClick },
                       { icon: HelpCircle, label: 'Central de Ajuda', action: onHelpClick },
                     ].map((item) => (
                       <button 

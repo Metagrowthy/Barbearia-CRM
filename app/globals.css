@@ -4,12 +4,12 @@
   --color-primary: #00328a;
   --color-primary-dark: #00266a;
   --color-primary-light: #0047bb;
-  --color-surface: var(--bg-main, #f7f9fb);
+  --color-surface: var(--bg-main, #ffffff);
   --color-outline: #e2e8f0;
 }
 
 :root {
-  --bg-main: #f7f9fb;
+  --bg-main: #ffffff; /* Fundo puramente branco no APP! */
   --bg-secondary: #ffffff;
   --text-color: #111827;
   --text-secondary: #6b7280;
@@ -17,11 +17,84 @@
 }
 
 [data-theme="cinza-profissional"] {
-  --bg-main: #2c3e50;
-  --bg-secondary: #34495e;
-  --text-color: #ffffff;
-  --text-secondary: #ffffff;
-  --accent-color: #95a5a6;
+  --bg-main: #0f172a; /* Slate 900 (Fundo principal escuro e elegante) */
+  --bg-secondary: #1e293b; /* Slate 800 (Cards, sidebar e modais ligeiramente mais claros) */
+  --text-color: #f8fafc; /* Slate 50 (Texto principal bem legível) */
+  --text-secondary: #94a3b8; /* Slate 400 (Textos de suporte/legenda) */
+  --accent-color: #38bdf8; /* Sky 400 */
+}
+
+/* Overrides planos para o tema escuro "Cinza Profissional" */
+[data-theme="cinza-profissional"] .bg-white:not(.bg-primary):not(.royal-gradient):not(.bg-theme-active),
+[data-theme="cinza-profissional"] .bg-white\/90:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-gray-50:not(.bg-primary):not(.royal-gradient):not(.bg-theme-active),
+[data-theme="cinza-profissional"] .bg-gray-50\/20:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-gray-50\/50:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-gray-100:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .glass-card,
+[data-theme="cinza-profissional"] .glass-panel {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-color) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="cinza-profissional"] .text-gray-900:not(.text-white):not(.text-green-600),
+[data-theme="cinza-profissional"] .text-gray-800:not(.text-white),
+[data-theme="cinza-profissional"] .text-gray-700:not(.text-white),
+[data-theme="cinza-profissional"] h1:not(.text-white),
+[data-theme="cinza-profissional"] h2:not(.text-white),
+[data-theme="cinza-profissional"] h3:not(.text-white),
+[data-theme="cinza-profissional"] h4:not(.text-white),
+[data-theme="cinza-profissional"] h5:not(.text-white) {
+  color: var(--text-color) !important;
+}
+
+[data-theme="cinza-profissional"] .text-gray-500:not(.text-white):not(.text-green-600):not(.text-green-700),
+[data-theme="cinza-profissional"] .text-gray-400:not(.text-white),
+[data-theme="cinza-profissional"] .text-muted-theme {
+  color: var(--text-secondary) !important;
+}
+
+/* Inputs, Selects e Textareas adaptáveis no modo escuro */
+[data-theme="cinza-profissional"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="cinza-profissional"] select,
+[data-theme="cinza-profissional"] textarea {
+  background-color: rgba(15, 23, 42, 0.6) !important; /* Slate 900 semitransparente */
+  color: var(--text-color) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="cinza-profissional"] input::placeholder,
+[data-theme="cinza-profissional"] textarea::placeholder {
+  color: rgba(148, 163, 184, 0.5) !important;
+}
+
+/* Bordas e divisores sutis */
+[data-theme="cinza-profissional"] .border-outline,
+[data-theme="cinza-profissional"] .border-outline\/50,
+[data-theme="cinza-profissional"] .border-outline\/30 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Elementos de tabela */
+[data-theme="cinza-profissional"] tr {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+[data-theme="cinza-profissional"] tr:hover {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Hover de itens de lista e botões inativos */
+[data-theme="cinza-profissional"] .hover\:bg-gray-100:hover:not(.bg-primary) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+[data-theme="cinza-profissional"] .bg-gray-50:hover:not(.bg-primary) {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Ícone do Topbar e botões inativos de navegação */
+[data-theme="cinza-profissional"] .text-gray-400 {
+  color: var(--text-secondary) !important;
 }
 
 body {

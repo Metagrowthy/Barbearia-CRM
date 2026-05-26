@@ -4,6 +4,7 @@ import React from 'react';
 import { X, Calendar, Clock, User, Phone, Scissors, DollarSign, CheckCircle2, ShoppingBag, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { getNicheConfig } from '@/lib/niches';
 
 function getLocalDateString(d: Date) {
   const year = d.getFullYear();
@@ -23,6 +24,7 @@ interface NewAppointmentModalProps {
   clientsList?: any[];
   appointments?: any[];
   establishmentId?: string;
+  niche?: string;
 }
 
 export default function NewAppointmentModal({ 
@@ -35,8 +37,14 @@ export default function NewAppointmentModal({
   businessHours = [],
   clientsList = [],
   appointments = [],
-  establishmentId
+  establishmentId,
+  niche = 'barbershop'
 }: NewAppointmentModalProps) {
+  const nicheCfg = getNicheConfig(niche);
+  const employeeLabel = nicheCfg.employeeLabelSingular;
+  const employeeLabelPlural = nicheCfg.employeeLabelPlural;
+  const ServiceIcon = nicheCfg.icon;
+
   const [step, setStep] = React.useState(1);
   const [suggestions, setSuggestions] = React.useState<any[]>([]);
   const [formData, setFormData] = React.useState({
@@ -54,6 +62,7 @@ export default function NewAppointmentModal({
   const optionsBarbers = barbersList ? barbersList.map(b => b.name) : defaultBarbersList;
 
   const [showExtraHours, setShowExtraHours] = React.useState(false);
+  const [additionalPrice, setAdditionalPrice] = React.useState<number>(0);
 
   // Calculate total duration needed for selected services
   const totalDuration = React.useMemo(() => {
@@ -178,6 +187,7 @@ export default function NewAppointmentModal({
     onSuccess({ 
       ...formData, 
       totalPrice,
+      additionalPrice: Number(additionalPrice),
       serviceId: serviceObj?.id,
       serviceName: serviceObj?.name || "Atendimento Vário",
       durationMinutes: totalDuration,
@@ -190,6 +200,7 @@ export default function NewAppointmentModal({
       onClose();
       setStep(1);
       setFormData({ name: '', phone: '', barber: '', selectedServices: [], selectedProducts: [], date: getLocalDateString(new Date()), time: '', clientId: undefined });
+      setAdditionalPrice(0);
     }, 2000);
   };
 
@@ -311,7 +322,7 @@ export default function NewAppointmentModal({
 
                     <label className="block">
                       <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-2">
-                        <User size={14} className="text-primary" /> Funcionário *
+                        <User size={14} className="text-primary" /> {employeeLabel} *
                       </span>
                       <select
                         required
@@ -319,7 +330,7 @@ export default function NewAppointmentModal({
                         onChange={e => setFormData(p => ({ ...p, barber: e.target.value }))}
                         className="w-full px-4 py-3 bg-gray-50 border border-outline rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:outline-hidden transition-all font-medium text-gray-900 appearance-none"
                       >
-                        <option value="" disabled>Selecione um funcionário</option>
+                        <option value="" disabled>Selecione um(a) {employeeLabel.toLowerCase()}</option>
                         {optionsBarbers.map(barber => (
                           <option key={barber} value={barber}>{barber}</option>
                         ))}
@@ -352,7 +363,7 @@ export default function NewAppointmentModal({
                     {/* Services Section */}
                     <div>
                       <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2 mb-3">
-                        <Scissors size={14} className="text-primary" /> Serviços Disponíveis
+                        <ServiceIcon size={14} className="text-primary animate-pulse" /> {nicheCfg.id === 'vet_pet' ? 'Serviços & Banhos' : 'Serviços'} Disponíveis
                       </span>
                       <div className="grid grid-cols-2 gap-3">
                         {servicesList.map(s => {
@@ -504,6 +515,28 @@ export default function NewAppointmentModal({
                         )}
                       </div>
                     </div>
+
+                    {/* Additional Value Section */}
+                    <div className="bg-primary/[0.02] p-4 rounded-xl border border-primary/10 mt-6">
+                      <span className="text-[11px] font-bold text-gray-700 uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <DollarSign size={14} className="text-primary" /> Valor Adicional (Gorjeta / Extra)
+                      </span>
+                      <p className="text-[10px] text-gray-500 font-medium mb-3 leading-relaxed">
+                        Caso o cliente pague um valor extra (gorjeta, caixinha ou adicional), insira abaixo para bater com o fluxo de caixa.
+                      </p>
+                      <div className="relative max-w-[160px]">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">R$</span>
+                        <input 
+                          type="number" 
+                          min="0"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={additionalPrice || ''} 
+                          onChange={e => setAdditionalPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full pl-9 pr-3 py-2 bg-white border border-outline rounded-xl text-xs font-black focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Summary Floating Bar */}
@@ -511,7 +544,7 @@ export default function NewAppointmentModal({
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total do Atendimento</p>
-                        <p className="text-xl font-black text-primary">R$ {totalPrice},00</p>
+                        <p className="text-xl font-black text-primary">R$ {totalPrice + Number(additionalPrice)},00</p>
                       </div>
                       <div className="flex gap-3">
                         <button 
@@ -553,7 +586,7 @@ export default function NewAppointmentModal({
                   <h3 className="text-2xl font-black text-gray-900 mb-2">Tudo Pronto!</h3>
                   <p className="text-sm text-gray-500 font-medium max-w-[280px] leading-relaxed">
                     O atendimento de <strong>{formData.name}</strong> foi registrado. 
-                    <br />Total: R$ {totalPrice},00 agendado para as {formData.time}.
+                    <br />Total: R$ {totalPrice + Number(additionalPrice)},00 agendado para as {formData.time}.
                   </p>
                 </motion.div>
               )}

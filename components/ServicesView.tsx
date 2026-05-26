@@ -8,8 +8,50 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase';
+import { getNicheConfig } from '@/lib/niches';
 
 // Mock Data
+const compressAndEncodeFile = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Compress to JPEG with 0.7 quality
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 const initialServices = [
   { id: 1, name: "Corte Masculino", duration: "45 min", price: 60.00, category: "Cabelo" },
   { id: 2, name: "Barba Profissional", duration: "30 min", price: 45.00, category: "Barba" },
@@ -27,6 +69,8 @@ interface Item {
   duration?: string;
   stock?: number;
   type?: 'drink' | 'supply';
+  description?: string;
+  image_url?: string;
 }
 
 interface ServicesViewProps {
@@ -40,6 +84,7 @@ interface ServicesViewProps {
   establishmentId?: string;
   activeTab?: Category;
   onTabChange?: (tab: Category) => void;
+  niche?: string;
 }
 
 export default function ServicesView({ 
@@ -52,8 +97,10 @@ export default function ServicesView({
   appointments = [],
   establishmentId,
   activeTab: propActiveTab,
-  onTabChange: propOnTabChange
+  onTabChange: propOnTabChange,
+  niche = 'barbershop'
 }: ServicesViewProps) {
+  const nicheCfg = getNicheConfig(niche);
   const [localActiveTab, setLocalActiveTab] = React.useState<Category>('services');
   
   const activeTab = propActiveTab !== undefined ? propActiveTab : localActiveTab;
@@ -71,6 +118,25 @@ export default function ServicesView({
     duration: '',
     stock: 0
   });
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("A imagem é muito grande. Escolha uma imagem de até 5MB.");
+      return;
+    }
+
+    try {
+      const base64 = await compressAndEncodeFile(file);
+      setFormData(prev => ({ ...prev, image_url: base64 }));
+    } catch (err: any) {
+      alert("Erro ao processar imagem: " + err.message);
+    }
+  };
 
   const [historyApts, setHistoryApts] = React.useState<any[]>([]);
 
@@ -98,135 +164,172 @@ export default function ServicesView({
         category: '',
         duration: activeTab === 'services' ? '30 min' : undefined,
         stock: activeTab !== 'services' ? 0 : undefined,
-        type: activeTab === 'drinks' ? 'drink' : activeTab === 'supplies' ? 'supply' : undefined
+        type: activeTab === 'drinks' ? 'drink' : activeTab === 'supplies' ? 'supply' : undefined,
+        description: '',
+        image_url: ''
       });
     }
     setIsModalOpen(true);
   };
 
   const handleSave = async () => {
-    const listMap = { services, drinks, supplies };
-    const setMap = { 
-      services: onUpdateServices, 
-      drinks: onUpdateDrinks, 
-      supplies: onUpdateSupplies 
-    };
-    
-    const currentList = listMap[activeTab];
-    const setter = setMap[activeTab];
-    const supabase = getSupabase();
-    
-    // Helper to get number from duration string ("45 min" -> 45)
-    const getDurationMinutes = (d?: string) => {
-      if (!d) return 45;
-      const num = parseInt(d.replace(/\D/g, ''), 10);
-      return isNaN(num) ? 45 : num;
-    };
+    try {
+      const listMap = { services, drinks, supplies };
+      const setMap = { 
+        services: onUpdateServices, 
+        drinks: onUpdateDrinks, 
+        supplies: onUpdateSupplies 
+      };
+      
+      const currentList = listMap[activeTab];
+      const setter = setMap[activeTab];
+      const supabase = getSupabase();
+      
+      // Check if it's a mock item being edited (does not exist in DB yet)
+      const isMockItem = editingItem && (
+        typeof editingItem.id === 'number' || 
+        (typeof editingItem.id === 'string' && (editingItem.id.startsWith('mock-') || editingItem.id.length < 10))
+      );
 
-    if (editingItem) {
-      // Supabase Sync
-      if (supabase && (activeTab === 'drinks' || activeTab === 'supplies')) {
-        const payload = {
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          stock: formData.stock
-        };
-        const { error } = await supabase
-          .from('inventory')
-          .update(payload)
-          .eq('id', editingItem.id);
-        
-        if (error) console.error('Supabase update error:', error);
-      } else if (supabase && activeTab === 'services') {
-        const payload = {
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          duration: formData.duration || '30 min'
-        };
-        const { error } = await supabase
-          .from('services')
-          .update(payload)
-          .eq('id', editingItem.id);
-        if (error) console.error('Supabase update error:', error);
-      }
-
-      setter(currentList.map(i => i.id === editingItem.id ? { ...i, ...formData } as Item : i));
-    } else {
-      const type = activeTab === 'drinks' ? 'drink' : activeTab === 'supplies' ? 'supply' : undefined;
-      let finalId: string | number = Math.max(...currentList.map(i => typeof i.id === 'number' ? i.id : 0), 0) + 1;
-
-      // Supabase Sync
-      if (supabase && (activeTab === 'drinks' || activeTab === 'supplies')) {
-        const payload = {
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          stock: formData.stock,
-          type,
-          establishment_id: establishmentId
-        };
-        const { data, error } = await supabase
-          .from('inventory')
-          .insert([payload])
-          .select();
-        
-        if (error) {
-          console.error('Supabase insert error:', error);
-          alert('Erro ao salvar produto: ' + error.message);
-          return;
+      if (editingItem && !isMockItem) {
+        // Supabase Sync - Real Update
+        if (supabase && (activeTab === 'drinks' || activeTab === 'supplies')) {
+          const payload = {
+            name: formData.name,
+            price: formData.price,
+            category: formData.category,
+            stock: formData.stock,
+            description: formData.description || null,
+            image_url: formData.image_url || null
+          };
+          const { error } = await supabase
+            .from('inventory')
+            .update(payload)
+            .eq('id', editingItem.id);
+          
+          if (error) {
+            console.error('Supabase update error:', error);
+            alert('Erro ao atualizar produto no banco de dados: ' + error.message);
+            return;
+          }
+        } else if (supabase && activeTab === 'services') {
+          const payload = {
+            name: formData.name,
+            price: formData.price,
+            category: formData.category,
+            duration: formData.duration || '30 min',
+            description: formData.description || null,
+            image_url: formData.image_url || null
+          };
+          const { error } = await supabase
+            .from('services')
+            .update(payload)
+            .eq('id', editingItem.id);
+          if (error) {
+            console.error('Supabase update error:', error);
+            alert('Erro ao atualizar serviço no banco de dados: ' + error.message);
+            return;
+          }
         }
-        if (data?.[0]) finalId = data[0].id;
-      } else if (supabase && activeTab === 'services') {
-        const payload = {
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          duration: formData.duration || '30 min',
-          establishment_id: establishmentId
-        };
-        const { data, error } = await supabase
-          .from('services')
-          .insert([payload])
-          .select();
-        if (error) {
-           console.error('Supabase insert error:', error);
-           alert('Erro ao salvar serviço: ' + error.message);
-           return;
-        }
-        if (data?.[0]) finalId = data[0].id;
-      }
 
-      const newItem = {
-        ...formData,
-        id: finalId,
-        type
-      } as Item;
-      setter([...currentList, newItem]);
+        setter(currentList.map(i => i.id === editingItem.id ? { ...i, ...formData } as Item : i));
+      } else {
+        // Supabase Sync - Insert (New item or converting a Mock item to real DB row)
+        const type = activeTab === 'drinks' ? 'drink' : activeTab === 'supplies' ? 'supply' : undefined;
+        let finalId: string | number = Math.max(...currentList.map(i => typeof i.id === 'number' ? i.id : 0), 0) + 1;
+
+        if (supabase && (activeTab === 'drinks' || activeTab === 'supplies')) {
+          const payload = {
+            name: formData.name,
+            price: formData.price,
+            category: formData.category,
+            stock: formData.stock,
+            type,
+            establishment_id: establishmentId,
+            description: formData.description || null,
+            image_url: formData.image_url || null
+          };
+          const { data, error } = await supabase
+            .from('inventory')
+            .insert([payload])
+            .select();
+          
+          if (error) {
+            console.error('Supabase insert error:', error);
+            alert('Erro ao criar produto no banco de dados: ' + error.message);
+            return;
+          }
+          if (data?.[0]) finalId = data[0].id;
+        } else if (supabase && activeTab === 'services') {
+          const payload = {
+            name: formData.name,
+            price: formData.price,
+            category: formData.category,
+            duration: formData.duration || '30 min',
+            establishment_id: establishmentId,
+            description: formData.description || null,
+            image_url: formData.image_url || null
+          };
+          const { data, error } = await supabase
+            .from('services')
+            .insert([payload])
+            .select();
+          if (error) {
+             console.error('Supabase insert error:', error);
+             alert('Erro ao criar serviço no banco de dados: ' + error.message);
+             return;
+          }
+          if (data?.[0]) finalId = data[0].id;
+        }
+
+        if (editingItem && isMockItem) {
+          // Promoted mock item: replace the mock element with the newly inserted DB row
+          setter(currentList.map(i => i.id === editingItem.id ? { ...i, ...formData, id: finalId } as Item : i));
+        } else {
+          // Totally new item: append to the list
+          const newItem = {
+            ...formData,
+            id: finalId,
+            type
+          } as Item;
+          setter([...currentList, newItem]);
+        }
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      console.error('Crash in handleSave:', err);
+      alert('Ocorreu um erro inesperado ao salvar: ' + (err.message || err));
     }
-    setIsModalOpen(false);
   };
 
   const handleDelete = async (id: string | number) => {
-    const setMap = { 
-      services: onUpdateServices, 
-      drinks: onUpdateDrinks, 
-      supplies: onUpdateSupplies 
-    };
-    const setter = setMap[activeTab];
-    const supabase = getSupabase();
+    try {
+      const setMap = { 
+        services: onUpdateServices, 
+        drinks: onUpdateDrinks, 
+        supplies: onUpdateSupplies 
+      };
+      const setter = setMap[activeTab];
+      const supabase = getSupabase();
 
-    if (supabase) {
-      const table = activeTab === 'services' ? 'services' : 'inventory';
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', id);
-      if (error) console.error('Supabase delete error:', error);
+      if (supabase) {
+        const table = activeTab === 'services' ? 'services' : 'inventory';
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('id', id);
+        if (error) {
+          console.error('Supabase delete error:', error);
+          alert('Erro ao excluir do banco de dados: ' + error.message);
+          return;
+        }
+      }
+
+      setter((prev: Item[]) => prev.filter(i => i.id !== id));
+    } catch (err: any) {
+      console.error('Crash in handleDelete:', err);
+      alert('Ocorreu um erro inesperado ao excluir: ' + (err.message || err));
     }
-
-    setter((prev: Item[]) => prev.filter(i => i.id !== id));
   };
 
   const currentItems = () => {
@@ -235,9 +338,16 @@ export default function ServicesView({
   };
 
   const tabs = [
-    { id: 'services', label: 'Serviços', icon: Layers },
-    { id: 'drinks', label: 'Bebidas', icon: Beer },
-    { id: 'supplies', label: 'Produtos/Insumos', icon: Package },
+    { 
+      id: 'services', 
+      label: nicheCfg.id === 'vet_pet' ? 'Serviços & Banhos' 
+             : nicheCfg.id === 'pilates_yoga' ? 'Aulas & Pilates'
+             : nicheCfg.id === 'personal_trainer' ? 'Aulas / Treinos'
+             : 'Serviços', 
+      icon: nicheCfg.icon 
+    },
+    { id: 'drinks', label: nicheCfg.beverageTerm, icon: Beer },
+    { id: 'supplies', label: nicheCfg.supplyTerm, icon: Package },
   ];
 
   return (
@@ -252,7 +362,7 @@ export default function ServicesView({
           <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
             Catálogo & Inventário <Package size={24} className="text-primary" />
           </h1>
-          <p className="text-xs md:text-sm text-gray-500 mt-1">Gerencie menus de serviços, estoque de bebidas e produtos.</p>
+          <p className="text-xs md:text-sm text-gray-500 mt-1">Gerencie menus de serviços, estoque de {nicheCfg.beverageTerm.toLowerCase()} e {nicheCfg.supplyTerm.toLowerCase()}.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -316,52 +426,81 @@ export default function ServicesView({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: idx * 0.05 }}
-              className="glass-card group flex flex-col border-outline/50 hover:border-primary/30"
+              className="glass-card group flex flex-col border-outline/50 hover:border-primary/30 overflow-hidden"
             >
-              <div className="p-5 border-b border-outline bg-gray-50/20">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-[9px] font-black text-primary uppercase tracking-widest px-2.5 py-1 bg-primary/5 rounded-full border border-primary/10">
-                    {item.category}
-                  </span>
-                  <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-[-5px] group-hover:translate-y-0">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
-                      className="p-2 bg-white hover:bg-primary/5 rounded-xl border border-outline transition-all text-gray-400 hover:text-primary shadow-sm"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                      className="p-2 bg-white hover:bg-red-50 rounded-xl border border-outline transition-all text-gray-400 hover:text-red-500 shadow-sm"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-                <h3 className="text-sm font-black text-gray-900 group-hover:text-primary transition-colors line-clamp-1">{item.name}</h3>
-                
-                {activeTab === 'services' ? (
-                  <div className="flex flex-col gap-1 mt-2">
-                    <div className="flex items-center gap-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                      <span className="flex items-center gap-1.5"><Clock size={12} className="text-amber-500" /> {item.duration}</span>
-                      <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                      <span className="flex items-center gap-1.5 text-green-600"><CheckCircle size={12} /> Ativo</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-[0.1em] mt-1 bg-primary/5 w-fit px-2 py-0.5 rounded">
-                      <Layers size={10} /> 
-                      {historyApts.filter(a => String(a.service_id) === String(item.id) || (a.service_name && a.service_name.toLowerCase().includes(item.name.toLowerCase()))).length} Atendimentos
-                    </div>
-                  </div>
+              {/* Product/Service Image */}
+              <div className="relative w-full aspect-video bg-gray-100 overflow-hidden border-b border-outline shrink-0">
+                {item.image_url ? (
+                  <img 
+                    src={item.image_url} 
+                    alt={item.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=225&fit=crop&q=80';
+                    }}
+                  />
                 ) : (
-                  <div className="flex items-center gap-2 mt-2 text-[10px] font-bold uppercase tracking-widest">
-                    <span className={cn(
-                      "px-2 py-0.5 rounded",
-                      (item.stock || 0) > 5 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-                    )}>
-                      Estoque: {item.stock} un
-                    </span>
+                  <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100/50 flex items-center justify-center relative">
+                    {activeTab === 'services' ? (
+                      <Scissors className="text-primary/15 w-10 h-10" />
+                    ) : activeTab === 'drinks' ? (
+                      <Beer className="text-primary/15 w-10 h-10" />
+                    ) : (
+                      <Package className="text-primary/15 w-10 h-10" />
+                    )}
                   </div>
                 )}
+              </div>
+
+              <div className="p-5 border-b border-outline bg-gray-50/20 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="text-[9px] font-black text-primary uppercase tracking-widest px-2.5 py-1 bg-primary/5 rounded-full border border-primary/10">
+                      {item.category}
+                    </span>
+                    <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-[-5px] group-hover:translate-y-0">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
+                        className="p-2 bg-white hover:bg-primary/5 rounded-xl border border-outline transition-all text-gray-400 hover:text-primary shadow-sm"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                        className="p-2 bg-white hover:bg-red-50 rounded-xl border border-outline transition-all text-gray-400 hover:text-red-500 shadow-sm"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 group-hover:text-primary transition-colors line-clamp-1">{item.name}</h3>
+                  {item.description && (
+                    <p className="text-[11px] text-gray-500 font-semibold mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
+                  )}
+                  
+                  {activeTab === 'services' ? (
+                    <div className="flex flex-col gap-1 mt-3">
+                      <div className="flex items-center gap-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        <span className="flex items-center gap-1.5"><Clock size={12} className="text-amber-500" /> {item.duration}</span>
+                        <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                        <span className="flex items-center gap-1.5 text-green-600"><CheckCircle size={12} /> Ativo</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-[0.1em] mt-1 bg-primary/5 w-fit px-2 py-0.5 rounded">
+                        <Layers size={10} /> 
+                        {historyApts.filter(a => String(a.service_id) === String(item.id) || (a.service_name && a.service_name.toLowerCase().includes(item.name.toLowerCase()))).length} Atendimentos
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-3 text-[10px] font-bold uppercase tracking-widest">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        (item.stock || 0) > 5 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                      )}>
+                        Estoque: {item.stock} un
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="p-5 flex items-center justify-between bg-white mt-auto">
@@ -389,7 +528,7 @@ export default function ServicesView({
           </div>
           <div className="text-center">
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest group-hover:text-primary transition-colors">
-              Adicionar {activeTab === 'services' ? 'Serviço' : activeTab === 'drinks' ? 'Bebida' : 'Produto'}
+              Adicionar {activeTab === 'services' ? (nicheCfg.id === 'vet_pet' ? 'Serviço/Banho' : 'Serviço') : activeTab === 'drinks' ? nicheCfg.beverageTerm : nicheCfg.supplyTerm}
             </p>
           </div>
         </button>
@@ -430,14 +569,14 @@ export default function ServicesView({
               <div className="p-6 md:p-8 space-y-6">
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-2">
-                    <Info size={12} /> Nome do {activeTab === 'services' ? 'Serviço' : 'Produto'}
+                    <Info size={12} /> Nome do {activeTab === 'services' ? (nicheCfg.id === 'vet_pet' ? 'Serviço/Banho' : 'Serviço') : nicheCfg.supplyTerm}
                   </label>
                   <input 
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full p-4 bg-gray-50 border border-outline rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden"
-                    placeholder="Ex: Corte Degradê com Navalha"
+                    placeholder={`Ex: ${activeTab === 'services' ? nicheCfg.defaultServices[0].name : (activeTab === 'drinks' ? 'Água Mineral' : 'Pomada Modeladora')}`}
                   />
                 </div>
 
@@ -462,7 +601,7 @@ export default function ServicesView({
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="w-full p-4 bg-gray-50 border border-outline rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden"
-                      placeholder="Ex: Barba"
+                      placeholder={`Ex: ${activeTab === 'services' ? nicheCfg.defaultServices[0].category : (activeTab === 'drinks' ? 'Bebidas' : 'Acessórios')}`}
                     />
                   </div>
                 </div>
@@ -476,6 +615,7 @@ export default function ServicesView({
                        {['30 min', '45 min', '60 min', '90 min'].map(d => (
                          <button 
                           key={d}
+                          type="button"
                           onClick={() => setFormData({ ...formData, duration: d })}
                           className={cn(
                             "flex-1 py-3 px-2 rounded-xl text-xs font-bold border transition-all",
@@ -500,6 +640,82 @@ export default function ServicesView({
                     />
                   </div>
                 )}
+
+                {/* Description input */}
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-2">
+                    <Info size={12} /> Descrição Detalhada / Completa
+                  </label>
+                  <textarea 
+                    rows={3}
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full p-4 bg-gray-50 border border-outline rounded-2xl text-sm font-semibold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden resize-none text-gray-900 custom-scrollbar"
+                    placeholder={activeTab === 'services' ? `Descreva detalhadamente o serviço para os clientes e assistentes de IA (ex: ${nicheCfg.defaultServices[0].description.substring(0, 60)}...)` : `Descreva detalhadamente o(a) ${nicheCfg.supplyTerm.toLowerCase()} para catálogo e IA...`}
+                  />
+                </div>
+
+                {/* Photo URL / Upload input */}
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-2">
+                    <Save size={12} /> Imagem do {activeTab === 'services' ? 'Serviço' : 'Produto'}
+                  </label>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-4 items-center">
+                      {/* Hidden File Input */}
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                      
+                      {/* Select from PC Button */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm border border-outline flex items-center gap-2 shrink-0 active:scale-95"
+                      >
+                        <Plus size={14} /> Selecionar do PC
+                      </button>
+                      
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">ou cole uma URL abaixo</span>
+                    </div>
+
+                    <div className="flex gap-4 items-start">
+                      <div className="flex-1">
+                        <input 
+                          type="text"
+                          value={formData.image_url || ''}
+                          onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                          className="w-full p-4 bg-gray-50 border border-outline rounded-2xl text-sm font-semibold focus:ring-4 focus:ring-primary/10 transition-all outline-hidden text-gray-900"
+                          placeholder="Link da imagem (ex: https://images.unsplash.com/...)"
+                        />
+                      </div>
+                      {formData.image_url && (
+                        <div className="w-16 h-16 rounded-xl border border-outline overflow-hidden shrink-0 bg-gray-50 shadow-sm relative group/preview">
+                          <img 
+                            src={formData.image_url} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, image_url: '' })}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover/preview:opacity-100 flex items-center justify-center text-white transition-opacity duration-200"
+                            title="Remover Imagem"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="p-6 bg-gray-50 border-t border-outline flex gap-3">

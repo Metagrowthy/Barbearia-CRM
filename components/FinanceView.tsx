@@ -956,7 +956,6 @@ export default function FinanceView({
                       <span className={item.stock && item.stock < 10 ? 'text-red-500' : 'text-gray-400'}>
                         Preço: R$ {Number(item.price).toFixed(2)}
                       </span>
-                      <span className="text-primary cursor-pointer hover:underline">Pedir Mais</span>
                     </div>
                   </div>
                 ))}

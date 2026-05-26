@@ -20,7 +20,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, Scissors, Calendar, Users, Briefcase, Zap } from 'lucide-react';
 
 import { getSupabase } from '@/lib/supabase';
-import { createInitialTenantProfile, createEmployeeAccount } from '@/app/actions';
+import { createInitialTenantProfile, createEmployeeAccount, getEstablishmentProfiles } from '@/app/actions';
+import { getNicheConfig } from '@/lib/niches';
 
 interface InventoryItem {
   id: string | number;
@@ -52,6 +53,7 @@ export default function Home() {
   const [globalSearch, setGlobalSearch] = React.useState('');
   const [notification, setNotification] = React.useState<string | null>(null);
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = React.useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isLocked, setIsLocked] = React.useState(false);
   const [isSuccess, setIsSuccess] = React.useState(false);
@@ -200,6 +202,8 @@ export default function Home() {
   });
 
   const [themeConfig, setThemeConfig] = React.useState({
+    ...getNicheConfig('barbershop'),
+    niche: 'barbershop',
     primaryColor: '#eab308',
     layout: 'modern' as 'modern' | 'classic',
     bgTheme: 'original'
@@ -266,6 +270,24 @@ export default function Home() {
       }, 0);
     }
   }, [userProfile]);
+
+  // Synchronize mock services when niche changes AND database services are empty
+  React.useEffect(() => {
+    if (services.length === 0 || services.some(s => String(s.id).startsWith('mock-') || typeof s.id === 'number')) {
+      const nicheCfg = getNicheConfig(themeConfig.niche || 'barbershop');
+      const mockServices = nicheCfg.defaultServices.map((s, idx) => ({
+        id: `mock-${idx}`,
+        name: s.name,
+        duration: s.duration,
+        durationMinutes: parseInt(s.duration.replace(/\D/g, '') || '30'),
+        price: s.price,
+        category: s.category,
+        description: s.description,
+        image_url: s.image_url
+      }));
+      setServices(mockServices);
+    }
+  }, [themeConfig.niche]);
 
   const handleUpdateProfile = async (newProfile: any) => {
     const updated = { ...shopProfile, ...newProfile };
@@ -443,7 +465,6 @@ export default function Home() {
     let clientsQuery = supabase.from('clients').select('*');
     let finQuery = supabase.from('financial_records').select('*');
     let estQuery = supabase.from('establishments').select('*');
-    let profilesQuery = supabase.from('profiles').select('full_name, role').eq('role', 'employee');
 
     // Filter by establishment if profile exists
     if (userProfile?.establishment_id) {
@@ -455,7 +476,6 @@ export default function Home() {
       clientsQuery = clientsQuery.eq('establishment_id', userProfile.establishment_id);
       finQuery = finQuery.eq('establishment_id', userProfile.establishment_id);
       estQuery = estQuery.eq('id', userProfile.establishment_id);
-      profilesQuery = profilesQuery.eq('establishment_id', userProfile.establishment_id);
     } else {
       // If no establishment_id, we shouldn't fetch any tenant-specific data
       setAppointments([]);
@@ -468,7 +488,7 @@ export default function Home() {
       return;
     }
 
-    const [invResponse, srvResponse, aptResponse, barberResponse, hoursResponse, clientsRes, finRes, estRes, profilesRes] = await Promise.all([
+    const [invResponse, srvResponse, aptResponse, barberResponse, hoursResponse, clientsRes, finRes, estRes] = await Promise.all([
       invQuery,
       srvQuery,
       aptQuery,
@@ -476,9 +496,20 @@ export default function Home() {
       hoursQuery,
       clientsQuery,
       finQuery,
-      estQuery,
-      profilesQuery
+      estQuery
     ]);
+
+    // Buscar perfis do estabelecimento via Server Action (ignora RLS e busca e-mails)
+    let profilesData: any[] = [];
+    if (userProfile?.establishment_id) {
+      const profilesRes = await getEstablishmentProfiles(userProfile.establishment_id);
+      if (profilesRes.success && profilesRes.data) {
+        profilesData = profilesRes.data;
+      } else {
+        console.error('Error fetching profiles from server action:', profilesRes.error);
+        setNotification('Erro profiles: ' + (profilesRes.error || 'Erro desconhecido'));
+      }
+    }
 
     if (estRes.error) {
       console.error('Error fetching establishment:', estRes.error);
@@ -541,31 +572,56 @@ export default function Home() {
 
     if (srvResponse.error) {
       console.error('Error fetching services:', srvResponse.error);
-    } else if (srvResponse.data) {
+    } else if (srvResponse.data && srvResponse.data.length > 0) {
       const mappedServices = srvResponse.data.map((s: any) => ({
         ...s,
         duration: s.duration || (s.duration_minutes ? `${s.duration_minutes} min` : '30 min'),
         durationMinutes: s.duration_minutes || parseInt(s.duration?.replace(/\D/g, '') || '30')
       }));
       setServices(mappedServices);
+    } else {
+      // Database empty - load active niche mock services
+      const nicheCfg = getNicheConfig(themeConfig.niche || 'barbershop');
+      const mockServices = nicheCfg.defaultServices.map((s, idx) => ({
+        id: `mock-${idx}`,
+        name: s.name,
+        duration: s.duration,
+        durationMinutes: parseInt(s.duration.replace(/\D/g, '') || '30'),
+        price: s.price,
+        category: s.category,
+        description: s.description,
+        image_url: s.image_url
+      }));
+      setServices(mockServices);
     }
 
     if (barberResponse.error) {
       console.error('Error fetching barbers:', barberResponse.error);
     } else if (barberResponse.data) {
-      const activeEmployeeNames = (profilesRes?.data || []).map((p: any) => p.full_name);
+      const activeEmployeeNames = profilesData.map((p: any) => p.full_name?.trim().toLowerCase());
 
       // Map DB barbers to UI format
-      const mappedBarbers = barberResponse.data.map((b: any) => ({
-        id: b.id,
-        name: b.name,
-        specialty: b.specialty,
-        color: b.color || 'bg-primary',
-        commission_type: b.commission_type,
-        commission_rate: b.commission_rate,
-        commission_fixed_value: b.commission_fixed_value,
-        has_access: activeEmployeeNames.includes(b.name)
-      }));
+      const mappedBarbers = barberResponse.data.map((b: any) => {
+        const matchingProfile = profilesData.find((p: any) => p.full_name?.trim().toLowerCase() === b.name?.trim().toLowerCase());
+        return {
+          id: b.id,
+          profile_id: matchingProfile?.id || null,
+          name: b.name,
+          specialty: b.specialty,
+          color: b.color || 'bg-primary',
+          commission_type: b.commission_type,
+          commission_rate: b.commission_rate,
+          commission_fixed_value: b.commission_fixed_value,
+          has_access: activeEmployeeNames.includes(b.name?.trim().toLowerCase()),
+          role: matchingProfile?.role || 'employee',
+          email: matchingProfile?.email || ''
+        };
+      });
+      console.log('--- DEBUG BARBERS ---');
+      console.log('profilesData:', profilesData.map((p:any) => ({ id: p.id, full_name: p.full_name, role: p.role })));
+      console.log('activeEmployeeNames:', activeEmployeeNames);
+      console.log('mappedBarbers:', mappedBarbers.map((b:any) => ({ name: b.name, has_access: b.has_access, role: b.role })));
+      
       setBarbers(mappedBarbers);
     }
 
@@ -751,6 +807,7 @@ export default function Home() {
         colorClass: data.colorClass || "bg-primary/10 border-primary text-primary",
         status: "confirmado",
         price: `R$ ${data.totalPrice},00`,
+        additional_price: Number(data.additionalPrice || 0),
         source: 'app'
       };
 
@@ -805,6 +862,7 @@ export default function Home() {
         end_time: endTimeStr,
         duration_minutes: newAppointmentUI.durationMinutes,
         price: typeof data.totalPrice === 'number' ? data.totalPrice : parseFloat(data.totalPrice.toString().replace('R$ ', '').replace(',', '.')),
+        additional_price: Number(data.additionalPrice || 0),
         color_class: newAppointmentUI.colorClass,
         status: newAppointmentUI.status,
         source: 'app'
@@ -956,6 +1014,7 @@ export default function Home() {
           establishmentId={userProfile?.establishment_id}
           activeTab={servicesTab}
           onTabChange={setServicesTab}
+          niche={themeConfig.niche || 'barbershop'}
         />;
       case 'notifications':
         return <NotificationsView 
@@ -1086,6 +1145,8 @@ export default function Home() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onLogout={handleLogout}
+        onProfileClick={() => setIsProfileModalOpen(true)}
+        niche={themeConfig.niche || 'barbershop'}
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
@@ -1097,8 +1158,9 @@ export default function Home() {
           onMarkAllRead={handleMarkAllRead}
           onLogout={handleLogout}
           onHistoryClick={() => setActiveTab('notifications')}
-          userName={shopProfile.userName || userProfile?.full_name || 'Dono'}
+          userName={userProfile?.full_name || shopProfile.userName || 'Dono'}
           userEmail={sessionEmail}
+          userRole={userProfile?.role || 'owner'}
           onSearch={(q) => {
             setGlobalSearch(q);
             const qLower = q.toLowerCase();
@@ -1157,6 +1219,7 @@ export default function Home() {
           onNotificationClick={() => showNotification("Você tem 3 novas notificações de agendamentos")}
           onHelpClick={() => showNotification("Central de Ajuda indisponível nesta demonstração")}
           onSettingsClick={() => setActiveTab('settings')}
+          onProfileSettingsClick={() => setIsProfileModalOpen(true)}
           onMenuToggle={() => setIsSidebarOpen(true)}
         />
         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -1176,6 +1239,117 @@ export default function Home() {
         </div>
       </main>
 
+      {/* Profile Modal */}
+      <AnimatePresence>
+        {isProfileModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+              onClick={() => setIsProfileModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/20 p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">Meu Perfil</h3>
+                <button 
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl transition-colors"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-1.5">Nome Exibido</label>
+                  <input 
+                    type="text" 
+                    disabled
+                    value={userProfile?.full_name || shopProfile.userName || 'Dono'}
+                    className="w-full px-4 py-3 bg-gray-50 border border-outline rounded-xl text-sm font-bold text-gray-500 cursor-not-allowed" 
+                  />
+                </div>
+                
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const pwd = fd.get('new_password') as string;
+                  const eml = fd.get('new_email') as string;
+                  
+                  if (!pwd && (!eml || eml === sessionEmail)) {
+                    alert("Altere o e-mail ou digite uma nova senha para salvar.");
+                    return;
+                  }
+                  if (pwd && pwd.length < 6) {
+                    alert("A senha deve ter no mínimo 6 caracteres.");
+                    return;
+                  }
+                  
+                  try {
+                    const { updateProfileCredentials } = await import('@/app/actions');
+                    if (userProfile?.id) {
+                      const res = await updateProfileCredentials(
+                        userProfile.id,
+                        eml !== sessionEmail ? eml : undefined,
+                        pwd ? pwd : undefined
+                      );
+                      
+                      if (res.success) {
+                        alert("Credenciais atualizadas com sucesso!");
+                        if (eml !== sessionEmail) setSessionEmail(eml);
+                        setIsProfileModalOpen(false);
+                      } else {
+                        alert("Erro: " + res.error);
+                      }
+                    } else {
+                      alert("Perfil de usuário não encontrado.");
+                    }
+                  } catch (err: any) {
+                    alert("Erro: " + err.message);
+                  }
+                }}>
+                  <div>
+                    <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-1.5">E-mail de Acesso</label>
+                    <input 
+                      type="email" 
+                      name="new_email"
+                      defaultValue={sessionEmail}
+                      className="w-full px-4 py-3 bg-white border border-outline rounded-xl text-sm font-bold text-gray-900 focus:ring-4 focus:ring-primary/10 transition-all outline-hidden" 
+                    />
+                  </div>
+                  
+                  <div className="pt-4 mt-4 border-t border-outline">
+                    <h4 className="text-sm font-black text-gray-900 mb-3">Segurança</h4>
+                    
+                    <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-1.5">Nova Senha (Opcional)</label>
+                    <input 
+                      type="password" 
+                      name="new_password"
+                      autoComplete="new-password"
+                      placeholder="Deixe em branco para não alterar"
+                      className="w-full px-4 py-3 bg-white border border-outline rounded-xl text-sm font-bold text-gray-900 focus:ring-4 focus:ring-primary/10 transition-all outline-hidden mb-4" 
+                    />
+                    <button 
+                      type="submit"
+                      className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <NewAppointmentModal 
         isOpen={isNewAppointmentOpen} 
         onClose={() => setIsNewAppointmentOpen(false)}
@@ -1187,6 +1361,7 @@ export default function Home() {
         clientsList={clients}
         appointments={appointments}
         establishmentId={userProfile?.establishment_id}
+        niche={themeConfig.niche || 'barbershop'}
       />
 
       <style jsx global>{`

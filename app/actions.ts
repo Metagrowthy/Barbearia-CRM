@@ -109,3 +109,124 @@ export async function createEmployeeAccount(email: string, password: string, ful
   }
 }
 
+export async function updateEmployeePassword(fullName: string, newPassword: string, establishmentId: string) {
+  try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { success: false, error: 'A chave administrativa do servidor não está configurada.' };
+    }
+
+    // 1. Find the profile of the employee
+    const { data: profile, error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('full_name', fullName)
+      .eq('establishment_id', establishmentId)
+      .single();
+
+    if (profErr || !profile) {
+      return { success: false, error: 'Funcionário não encontrado no sistema.' };
+    }
+
+    // 2. Update the user password in auth.users
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      profile.id,
+      { password: newPassword }
+    );
+
+    if (authError) {
+      return { success: false, error: authError.message || 'Erro ao atualizar a senha.' };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro interno do servidor ao atualizar a senha.' };
+  }
+}
+
+export async function updateProfileCredentials(userId: string, newEmail?: string, newPassword?: string) {
+  try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { success: false, error: 'A chave administrativa não está configurada.' };
+    }
+
+    const updates: any = {};
+    if (newEmail) updates.email = newEmail;
+    if (newPassword) updates.password = newPassword;
+
+    // Use admin API to bypass email confirmation requirements
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, updates);
+
+    if (error) {
+      return { success: false, error: error.message || 'Erro ao atualizar credenciais.' };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro interno do servidor.' };
+  }
+}
+
+export async function updateEmployeeRole(fullName: string, newRole: string, establishmentId: string) {
+  try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { success: false, error: 'A chave administrativa não está configurada.' };
+    }
+
+    const { data: profile, error: searchError } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .ilike('full_name', fullName)
+      .eq('establishment_id', establishmentId)
+      .single();
+
+    if (searchError || !profile) {
+      return { success: false, error: 'Perfil do funcionário não encontrado.' };
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', profile.id);
+
+    if (updateError) {
+      return { success: false, error: updateError.message || 'Erro ao atualizar o nível de acesso.' };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erro interno do servidor ao atualizar o nível de acesso.' };
+  }
+}
+
+export async function getEstablishmentProfiles(establishmentId: string) {
+  try {
+    const { data: profiles, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('establishment_id', establishmentId);
+      
+    if (error) throw error;
+
+    // Buscar os usuários do auth para obter os e-mails
+    const { data: { users }, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
+    
+    const userEmailMap = new Map<string, string>();
+    if (!usersErr && users) {
+      users.forEach(u => {
+        if (u.email) {
+          userEmailMap.set(u.id, u.email);
+        }
+      });
+    }
+
+    const profilesWithEmail = (profiles || []).map(p => ({
+      ...p,
+      email: userEmailMap.get(p.id) || ''
+    }));
+
+    return { success: true, data: profilesWithEmail };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
