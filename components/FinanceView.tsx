@@ -287,23 +287,24 @@ export default function FinanceView({
     // Default: Ano (Months)
     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     return meses.map((name, index) => {
-      const allItems = [...(appointments || []), ...(financialRecords || [])].filter(i => {
+      const monthItems = filteredData.filter(i => {
         if (!i.date) return false;
         const dateOnly = String(i.date).split('T')[0];
-        const [y, m] = dateOnly.split('-').map(Number);
-        return (m - 1) === index && y === currentYear;
+        const [_, m] = dateOnly.split('-').map(Number);
+        return (m - 1) === index;
       });
-      const receita = allItems.filter(i => {
-        if (i.source === 'appointment') return (i.status || '').toLowerCase() !== 'cancelado';
-        return i.type === 'income' || !i.type; 
-      }).reduce((acc, curr) => {
-        const val = curr.source === 'appointment' ? (typeof curr.value === 'number' ? curr.value : parseFloat(String(curr.value || 0).replace('R$ ', '').replace(',', '.'))) : (Number(curr.amount) || 0);
-        return acc + (isNaN(val) ? 0 : val);
-      }, 0);
-      const despesa = allItems.filter(i => i.type === 'expense').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+      const receita = monthItems.filter(i => {
+        if (i.source === 'appointment') {
+          const status = (i.status || '').toLowerCase();
+          return status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+        }
+        return i.type === 'income';
+      }).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+      const despesa = monthItems.filter(i => i.type === 'expense').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
       return { name, receita, despesa };
     });
-  }, [appointments, financialRecords, filteredData, period, startDate, endDate]);
+  }, [filteredData, period, startDate, endDate]);
 
   const handleSaveRecord = async () => {
     if (!newRecord.description || !newRecord.amount) {
