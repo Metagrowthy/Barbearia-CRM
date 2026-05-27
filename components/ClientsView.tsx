@@ -23,6 +23,13 @@ export default function ClientsView({ onNewClient, establishmentId }: ClientsVie
   const [notification, setNotification] = React.useState<string | null>(null);
   const [dbClients, setDbClients] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [clientLimit, setClientLimit] = React.useState(20);
+  const [clientPage, setClientPage] = React.useState(1);
+
+  // Reset page to 1 whenever filters, search, sorting or limit change
+  React.useEffect(() => {
+    setClientPage(1);
+  }, [search, activeFilter, sortBy, sortOrder, clientLimit]);
 
   React.useEffect(() => {
     const fetchClients = async () => {
@@ -429,7 +436,7 @@ export default function ClientsView({ onNewClient, establishmentId }: ClientsVie
             </thead>
             <tbody className="divide-y divide-outline">
               <AnimatePresence mode="popLayout">
-                {filteredClients.map((client) => (
+                {filteredClients.slice((clientPage - 1) * clientLimit, clientPage * clientLimit).map((client) => (
                   <motion.tr 
                     layout
                     key={client.id}
@@ -559,12 +566,57 @@ export default function ClientsView({ onNewClient, establishmentId }: ClientsVie
           </table>
         </div>
 
-        <div className="p-4 border-t border-outline flex items-center justify-between bg-gray-50/30">
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Página 1 de 1 • {filteredClients.length} de {dbClients.length} Registros</p>
-          <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest">
-            <button className="px-4 py-2 border border-outline rounded-lg bg-white text-gray-400 cursor-not-allowed" disabled>Anterior</button>
-            <button className="px-4 py-2 border border-primary/20 rounded-lg bg-primary/5 text-primary shadow-xs">01</button>
-            <button className="px-4 py-2 border border-outline rounded-lg bg-white text-gray-400 cursor-not-allowed" disabled>Próximo</button>
+        {/* Paginação / Limite de Itens no rodapé */}
+        <div className="px-6 py-4 bg-gray-50/30 border-t border-outline flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Texto de Resumo */}
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider min-w-[200px]">
+            {filteredClients.length === 0 
+              ? "Nenhum cliente encontrado" 
+              : `Mostrando ${((clientPage - 1) * clientLimit) + 1} a ${Math.min(filteredClients.length, clientPage * clientLimit)} de ${filteredClients.length} registros`
+            }
+          </span>
+
+          {/* Controles de Páginas */}
+          {Math.ceil(filteredClients.length / clientLimit) > 1 && (
+            <div className="flex items-center gap-2 bg-white border border-outline rounded-xl p-1 shadow-sm">
+              <button
+                disabled={clientPage === 1}
+                onClick={() => setClientPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+              >
+                Anterior
+              </button>
+              <span className="text-[10px] font-black text-gray-500 px-3 border-x border-outline select-none">
+                Pág {clientPage} de {Math.ceil(filteredClients.length / clientLimit)}
+              </span>
+              <button
+                disabled={clientPage === Math.ceil(filteredClients.length / clientLimit)}
+                onClick={() => setClientPage(prev => Math.min(Math.ceil(filteredClients.length / clientLimit), prev + 1))}
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+              >
+                Próxima
+              </button>
+            </div>
+          )}
+
+          {/* Seletor de Limite */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Exibir:</span>
+            <div className="flex bg-white border border-outline rounded-xl p-0.5 shadow-sm">
+              {[20, 50, 100, 'Todos'].map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setClientLimit(opt === 'Todos' ? 999999 : Number(opt))}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    (opt === 'Todos' && clientLimit === 999999) || (typeof opt === 'number' && clientLimit === opt)
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

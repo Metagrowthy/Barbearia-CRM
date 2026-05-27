@@ -36,6 +36,13 @@ export default function HistoryView({
   const [productsQuantities, setProductsQuantities] = React.useState<Record<string, number>>({});
   const [additionalAmount, setAdditionalAmount] = React.useState<number>(0);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [historyLimit, setHistoryLimit] = React.useState(20);
+  const [historyPage, setHistoryPage] = React.useState(1);
+
+  // Reset page to 1 whenever filters, search, or limit change
+  React.useEffect(() => {
+    setHistoryPage(1);
+  }, [search, activeFilter, historyLimit]);
 
   const performFetch = React.useCallback(async () => {
     const supabase = getSupabase();
@@ -417,7 +424,7 @@ export default function HistoryView({
                     </div>
                   </td>
                 </tr>
-              ) : filteredHistory.map((apt) => {
+              ) : filteredHistory.slice((historyPage - 1) * historyLimit, historyPage * historyLimit).map((apt) => {
                 return (
                 <tr key={apt.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-5">
@@ -494,6 +501,60 @@ export default function HistoryView({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Paginação / Limite de Itens no rodapé do histórico */}
+        <div className="px-6 py-4 bg-gray-50/30 border-t border-outline flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Texto de Resumo */}
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider min-w-[200px]">
+            {filteredHistory.length === 0 
+              ? "Nenhum registro encontrado" 
+              : `Mostrando ${((historyPage - 1) * historyLimit) + 1} a ${Math.min(filteredHistory.length, historyPage * historyLimit)} de ${filteredHistory.length} registros`
+            }
+          </span>
+
+          {/* Controles de Páginas */}
+          {Math.ceil(filteredHistory.length / historyLimit) > 1 && (
+            <div className="flex items-center gap-2 bg-white border border-outline rounded-xl p-1 shadow-sm">
+              <button
+                disabled={historyPage === 1}
+                onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+              >
+                Anterior
+              </button>
+              <span className="text-[10px] font-black text-gray-500 px-3 border-x border-outline select-none">
+                Pág {historyPage} de {Math.ceil(filteredHistory.length / historyLimit)}
+              </span>
+              <button
+                disabled={historyPage === Math.ceil(filteredHistory.length / historyLimit)}
+                onClick={() => setHistoryPage(prev => Math.min(Math.ceil(filteredHistory.length / historyLimit), prev + 1))}
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+              >
+                Próxima
+              </button>
+            </div>
+          )}
+
+          {/* Seletor de Limite */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Exibir:</span>
+            <div className="flex bg-white border border-outline rounded-xl p-0.5 shadow-sm">
+              {[20, 50, 100, 'Todos'].map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setHistoryLimit(opt === 'Todos' ? 999999 : Number(opt))}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    (opt === 'Todos' && historyLimit === 999999) || (typeof opt === 'number' && historyLimit === opt)
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

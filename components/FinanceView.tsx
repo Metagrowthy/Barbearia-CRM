@@ -112,12 +112,16 @@ export default function FinanceView({
           type: 'income' as const
         };
       }),
-      ...financialRecords.map(r => ({
-        ...r,
-        source: 'manual' as const,
-        amount: parseFloat(String(r.amount || 0)) || 0,
-        type: r.type as 'income' | 'expense'
-      }))
+      ...financialRecords.map(r => {
+        const foundBarber = (barbers || []).find(b => b.id === r.barber_id);
+        return {
+          ...r,
+          source: 'manual' as const,
+          amount: parseFloat(String(r.amount || 0)) || 0,
+          type: r.type as 'income' | 'expense',
+          barber: foundBarber ? foundBarber.name : (r.barber || '')
+        };
+      })
     ];
 
     return combine.filter(item => {
@@ -159,7 +163,7 @@ export default function FinanceView({
       if (period === 'Ano') return y === now.getFullYear();
       return true;
     });
-  }, [appointments, financialRecords, period, startDate, endDate]);
+  }, [appointments, financialRecords, period, startDate, endDate, barbers]);
 
   const flowFilteredData = React.useMemo(() => {
     return filteredData.filter(item => {
@@ -214,11 +218,17 @@ export default function FinanceView({
     // Reuse logic similar to the commissions report to be consistent
     const totalCommissions = (barbers || []).reduce((acc, barber) => {
       const barberApps = filteredData.filter(a => {
-        if (a.source !== 'appointment') return false;
         const status = (a.status || '').toLowerCase();
-        return (a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name) && 
-               status !== 'cancelado' && 
-               (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+        const matchesBarber = a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name;
+        
+        if (!matchesBarber) return false;
+        
+        if (a.source === 'appointment') {
+          return status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+        } else if (a.source === 'manual') {
+          return a.type === 'income';
+        }
+        return false;
       });
 
       const commissionType = barber.commission_type || 'percentage';
@@ -933,9 +943,17 @@ export default function FinanceView({
                       const isEditing = editingBarberId === barber.id;
                       
                       const apps = filteredData.filter(a => {
-                        if (a.source !== 'appointment') return false;
                         const status = (a.status || '').toLowerCase();
-                        return (a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name) && status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+                        const matchesBarber = a.barber_id === barber.id || a.barberId === barber.id || a.barber === barber.name;
+                        
+                        if (!matchesBarber) return false;
+                        
+                        if (a.source === 'appointment') {
+                          return status !== 'cancelado' && (status === 'concluido' || status === 'agendado' || status === 'confirmado' || status === 'atendido' || status === 'pago');
+                        } else if (a.source === 'manual') {
+                          return a.type === 'income';
+                        }
+                        return false;
                       });
                       
                       const commissionType = isEditing ? (editValues.commission_type || barber.commission_type || 'percentage') : (barber.commission_type || 'percentage');
