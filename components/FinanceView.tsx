@@ -70,6 +70,20 @@ export default function FinanceView({
   const [startDate, setStartDate] = React.useState('');
   const [endDate, setEndDate] = React.useState('');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+
+  // Flow Filters State
+  const [flowSearch, setFlowSearch] = React.useState('');
+  const [flowCategory, setFlowCategory] = React.useState('All');
+  const [flowType, setFlowType] = React.useState('All');
+  const [flowSource, setFlowSource] = React.useState('All');
+  const [flowLimit, setFlowLimit] = React.useState(20);
+  const [flowPage, setFlowPage] = React.useState(1);
+
+  // Reset page to 1 whenever filters or limit change
+  React.useEffect(() => {
+    setFlowPage(1);
+  }, [flowSearch, flowCategory, flowType, flowSource, flowLimit]);
+
   const [newRecord, setNewRecord] = React.useState({
     description: '',
     amount: '',
@@ -147,6 +161,41 @@ export default function FinanceView({
     });
   }, [appointments, financialRecords, period, startDate, endDate]);
 
+  const flowFilteredData = React.useMemo(() => {
+    return filteredData.filter(item => {
+      // 1. Filter by Search Query (Description, Client Name, Barber Name, Date, Month Name)
+      const desc = (item.source === 'appointment' ? `Atendimento: ${item.client || item.client_name}` : item.description || '').toLowerCase();
+      const barber = (item.barber || '').toLowerCase();
+      
+      // Also allow searching by formatted date (e.g., '26/05', '2026')
+      const formattedDate = String(item.date).split('T')[0].split('-').reverse().join('/');
+      
+      // Support searching by Portuguese month name (e.g., 'janeiro', 'maio')
+      const monthNamesPt = [
+        'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+        'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+      ];
+      const dateOnly = String(item.date).split('T')[0];
+      const [_, monthNum] = dateOnly.split('-').map(Number);
+      const monthName = (monthNum && monthNum >= 1 && monthNum <= 12) ? monthNamesPt[monthNum - 1] : '';
+
+      const query = flowSearch.toLowerCase();
+      const matchesSearch = desc.includes(query) || barber.includes(query) || formattedDate.includes(query) || monthName.includes(query);
+
+      // 2. Filter by Category
+      const itemCategory = item.category || (item.source === 'appointment' ? 'Serviço' : 'Geral');
+      const matchesCategory = flowCategory === 'All' || itemCategory === flowCategory;
+
+      // 3. Filter by Type
+      const matchesType = flowType === 'All' || item.type === flowType;
+
+      // 4. Filter by Source (Sistema vs Manual)
+      const matchesSource = flowSource === 'All' || item.source === flowSource;
+
+      return matchesSearch && matchesCategory && matchesType && matchesSource;
+    });
+  }, [filteredData, flowSearch, flowCategory, flowType, flowSource]);
+
   const stats = React.useMemo(() => {
     const incomeItems = filteredData.filter(i => {
       if (i.source === 'appointment') {
@@ -199,6 +248,9 @@ export default function FinanceView({
     // Occupancy still based on appointments
     const aptsInPeriod = filteredData.filter(i => i.source === 'appointment');
     const totalServiceMinutes = aptsInPeriod.reduce((acc, curr) => {
+      const appDuration = curr.duration_minutes || curr.durationMinutes;
+      if (appDuration) return acc + Number(appDuration);
+
       const srv = services.find(s => s.id === curr.service_id || s.id === curr.serviceId);
       if (srv?.duration_minutes) return acc + srv.duration_minutes;
       if (srv?.duration) {
@@ -654,6 +706,76 @@ export default function FinanceView({
               <Plus size={14} /> Novo Lançamento
             </button>
           </div>
+
+          {/* Barra de Busca e Filtros Inteligentes */}
+          <div className="px-6 py-4 bg-gray-50/40 border-b border-outline flex flex-col md:flex-row items-stretch md:items-center gap-3">
+            {/* Campo de Busca Principal */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Buscar por cliente, descrição, funcionário ou data (dd/mm/aaaa)..."
+                value={flowSearch}
+                onChange={(e) => setFlowSearch(e.target.value)}
+                className="w-full pl-4 pr-10 py-2.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-700 placeholder:text-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none"
+              />
+              {flowSearch && (
+                <button 
+                  onClick={() => setFlowSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 text-xs font-bold"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap md:flex-nowrap items-center gap-2.5">
+              {/* Filtro de Categoria */}
+              <div className="flex-1 md:flex-initial min-w-[140px]">
+                <select
+                  value={flowCategory}
+                  onChange={(e) => setFlowCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none appearance-none cursor-pointer"
+                >
+                  <option value="All">Todas as Categorias</option>
+                  <option value="Serviço">Serviço</option>
+                  <option value="Aluguel & Contas">Aluguel & Contas</option>
+                  <option value="Estoque">Estoque</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Equipamentos">Equipamentos</option>
+                  <option value="Salários">Salários</option>
+                  <option value="Geral">Geral</option>
+                  <option value="Venda de Produtos">Venda de Produtos</option>
+                </select>
+              </div>
+
+              {/* Filtro de Tipo (Entrada/Saída) */}
+              <div className="flex-1 md:flex-initial min-w-[130px]">
+                <select
+                  value={flowType}
+                  onChange={(e) => setFlowType(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none appearance-none cursor-pointer"
+                >
+                  <option value="All">Todos os Tipos</option>
+                  <option value="income">Entrada (+)</option>
+                  <option value="expense">Saída (-)</option>
+                </select>
+              </div>
+
+              {/* Filtro de Origem (Sistema/Manual) */}
+              <div className="flex-1 md:flex-initial min-w-[130px]">
+                <select
+                  value={flowSource}
+                  onChange={(e) => setFlowSource(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-outline rounded-xl text-xs font-bold text-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all outline-none appearance-none cursor-pointer"
+                >
+                  <option value="All">Todas as Origens</option>
+                  <option value="appointment">Sistema (Automático)</option>
+                  <option value="manual">Manual (Lançado)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -666,8 +788,9 @@ export default function FinanceView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline">
-                {filteredData
+                {flowFilteredData
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .slice((flowPage - 1) * flowLimit, flowPage * flowLimit)
                   .map((item, idx) => {
                     const isIncome = item.type === 'income';
                     return (
@@ -721,15 +844,69 @@ export default function FinanceView({
                       </tr>
                     );
                   })}
-                {filteredData.length === 0 && (
+                {flowFilteredData.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-xs text-gray-400 font-bold italic">
-                      Nenhum registro encontrado para este período.
+                      Nenhum registro encontrado para este período ou busca.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Paginação / Limite de Itens no rodapé do extrato */}
+          <div className="px-6 py-4 bg-gray-50/30 border-t border-outline flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Texto de Resumo */}
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider min-w-[200px]">
+              {flowFilteredData.length === 0 
+                ? "Nenhum registro encontrado" 
+                : `Mostrando ${((flowPage - 1) * flowLimit) + 1} a ${Math.min(flowFilteredData.length, flowPage * flowLimit)} de ${flowFilteredData.length} registros`
+              }
+            </span>
+
+            {/* Controles de Páginas */}
+            {Math.ceil(flowFilteredData.length / flowLimit) > 1 && (
+              <div className="flex items-center gap-2 bg-white border border-outline rounded-xl p-1 shadow-sm">
+                <button
+                  disabled={flowPage === 1}
+                  onClick={() => setFlowPage(prev => Math.max(1, prev - 1))}
+                  className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+                >
+                  Anterior
+                </button>
+                <span className="text-[10px] font-black text-gray-500 px-3 border-x border-outline select-none">
+                  Pág {flowPage} de {Math.ceil(flowFilteredData.length / flowLimit)}
+                </span>
+                <button
+                  disabled={flowPage === Math.ceil(flowFilteredData.length / flowLimit)}
+                  onClick={() => setFlowPage(prev => Math.min(Math.ceil(flowFilteredData.length / flowLimit), prev + 1))}
+                  className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary disabled:opacity-30 disabled:hover:text-gray-400 transition-colors duration-250 cursor-pointer"
+                >
+                  Próxima
+                </button>
+              </div>
+            )}
+
+            {/* Seletor de Limite */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Exibir:</span>
+              <div className="flex bg-white border border-outline rounded-xl p-0.5 shadow-sm">
+                {[20, 50, 100, 'Todos'].map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setFlowLimit(opt === 'Todos' ? 999999 : Number(opt))}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      (opt === 'Todos' && flowLimit === 999999) || (typeof opt === 'number' && flowLimit === opt)
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
