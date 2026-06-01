@@ -695,20 +695,26 @@ export default function Home() {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    // Real-time Listeners
+    // Real-time Listeners with logging for debugging
     const aptSubscription = supabase
       .channel('appointments-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, (payload: any) => {
+        console.log('⚡ [Realtime] Mudança detectada em appointments:', payload);
         fetchData();
       })
-      .subscribe();
+      .subscribe((status: any) => {
+        console.log('📡 [Realtime] Inscrição em appointments status:', status);
+      });
 
     const finSubscription = supabase
       .channel('financial-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_records' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_records' }, (payload: any) => {
+        console.log('⚡ [Realtime] Mudança detectada em financial_records:', payload);
         fetchData(); 
       })
-      .subscribe();
+      .subscribe((status: any) => {
+        console.log('📡 [Realtime] Inscrição em financial_records status:', status);
+      });
 
     return () => {
       aptSubscription.unsubscribe();
@@ -967,6 +973,7 @@ export default function Home() {
             appointments={appointments} 
             barbersList={barbers}
             userProfile={userProfile}
+            businessHours={businessHours}
             onNewAppointment={() => setIsNewAppointmentOpen(true)} 
           />
         );

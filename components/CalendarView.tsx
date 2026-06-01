@@ -10,14 +10,20 @@ interface CalendarViewProps {
   appointments?: any[];
   barbersList?: any[];
   userProfile?: any;
+  businessHours?: any[];
 }
 
-export default function CalendarView({ onNewAppointment, appointments: externalAppointments, barbersList, userProfile }: CalendarViewProps) {
+export default function CalendarView({ onNewAppointment, appointments: externalAppointments, barbersList, userProfile, businessHours }: CalendarViewProps) {
   const today = new Date();
   const [currentView, setCurrentView] = React.useState('Dia');
   const [currentMonth, setCurrentMonth] = React.useState(today.getMonth()); 
   const [currentYear, setCurrentYear] = React.useState(today.getFullYear());
   const [selectedDay, setSelectedDay] = React.useState(today.getDate());
+
+  React.useEffect(() => {
+    console.log("⚡ [Agenda Debug] Agendamentos recebidos na tela:", externalAppointments);
+    console.log("⚡ [Agenda Debug] Barbeiros ativos:", barbersList);
+  }, [externalAppointments, barbersList]);
 
   const defaultBarbers = [
     { name: 'Rodrigo (Sênior)', color: 'bg-primary' },
@@ -96,7 +102,67 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => `empty-${i}`);
   const days = Array.from({ length: daysInMonth(currentMonth, currentYear) }, (_, i) => i + 1);
-  const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+
+  const timeSlots = React.useMemo(() => {
+    const defaultSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+    if (!businessHours || businessHours.length === 0) {
+      return defaultSlots;
+    }
+
+    let startHour = 8;
+    let endHour = 19;
+    let foundRange = false;
+
+    if (currentView === 'Dia') {
+      const selectedDate = new Date(currentYear, currentMonth, selectedDay);
+      const dayOfWeek = selectedDate.getDay();
+      const dayConfig = businessHours.find((h: any) => Number(h.day_of_week) === dayOfWeek || Number(h.day) === dayOfWeek);
+      
+      if (dayConfig && !dayConfig.is_closed && dayConfig.open_time && dayConfig.close_time) {
+        const [openH] = dayConfig.open_time.split(':').map(Number);
+        const [closeH] = dayConfig.close_time.split(':').map(Number);
+        if (openH < closeH) {
+          startHour = openH;
+          endHour = closeH;
+          foundRange = true;
+        } else if (openH === closeH) {
+          startHour = openH;
+          endHour = openH;
+          foundRange = true;
+        }
+      }
+    }
+
+    // If not found (or in Week view, or Day view of a closed day), calculate the union of all open days
+    if (!foundRange) {
+      const openDays = businessHours.filter((h: any) => !h.is_closed && h.open_time && h.close_time);
+      if (openDays.length > 0) {
+        let earliest = 24;
+        let latest = 0;
+        openDays.forEach((h: any) => {
+          const openH = parseInt(h.open_time.split(':')[0], 10);
+          const closeH = parseInt(h.close_time.split(':')[0], 10);
+          if (openH < earliest) earliest = openH;
+          if (closeH > latest) latest = closeH;
+        });
+        if (earliest <= latest) {
+          startHour = earliest;
+          endHour = latest;
+          foundRange = true;
+        }
+      }
+    }
+
+    if (!foundRange) {
+      return defaultSlots;
+    }
+
+    const slots = [];
+    for (let h = startHour; h <= endHour; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`);
+    }
+    return slots.length > 0 ? slots : defaultSlots;
+  }, [businessHours, currentView, currentYear, currentMonth, selectedDay]);
 
   const nextMonth = () => {
     if (currentMonth === 11) {
