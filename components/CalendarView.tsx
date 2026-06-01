@@ -344,7 +344,7 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
                 {/* Header for Barbers in Dia view */}
                 {currentView === 'Dia' && (
                   <div className="flex border-b border-outline bg-gray-50/30">
-                    <div className="w-20 shrink-0 border-r border-outline" />
+                    <div className="w-20 shrink-0 border-r border-outline sticky left-0 z-20 bg-gray-50" />
                     {barbers.filter(b => selectedBarbers.includes(b.name)).map(barber => (
                       <div key={barber.name} className="flex-1 p-3 text-center border-r border-outline last:border-r-0">
                         <div className="flex items-center justify-center gap-2">
@@ -359,7 +359,7 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
                 {/* Header for Days in Semana view */}
                 {currentView === 'Semana' && (
                   <div className="flex border-b border-outline bg-gray-50/30">
-                    <div className="w-20 shrink-0 border-r border-outline flex flex-col items-center justify-center p-2 bg-gray-50/30">
+                    <div className="w-20 shrink-0 border-r border-outline flex flex-col items-center justify-center p-2 bg-gray-50 sticky left-0 z-20">
                       {activeBarberName && (
                         <>
                           <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 leading-none text-center">Profissional</span>
@@ -402,7 +402,7 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
                 <div className="divide-y divide-outline">
                   {timeSlots.map((time) => (
                     <div key={time} className="flex min-h-[80px] group">
-                      <div className="w-20 p-4 border-r border-outline text-[11px] font-bold text-gray-400 bg-gray-50/30 shrink-0 flex items-center justify-center">
+                      <div className="w-20 p-4 border-r border-outline text-[11px] font-bold text-gray-400 bg-gray-50 shrink-0 flex items-center justify-center sticky left-0 z-20">
                         {time}
                       </div>
                       
