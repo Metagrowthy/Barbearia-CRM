@@ -582,7 +582,7 @@ export default function FinanceView({
         </div>
         
         <div className="flex flex-col md:flex-row items-end md:items-center gap-3">
-          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-outline overflow-x-auto max-w-[300px] sm:max-w-none">
+          <div className="flex flex-wrap bg-white p-1 rounded-xl shadow-sm border border-outline w-full md:w-auto">
             {['Hoje', 'Esta Semana', 'Este Mês', 'Ano'].map((p) => (
               <button
                 key={p}

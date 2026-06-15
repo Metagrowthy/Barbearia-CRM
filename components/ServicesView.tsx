@@ -387,7 +387,7 @@ export default function ServicesView({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-outline mb-8 gap-8 overflow-x-auto pb-px">
+      <div className="flex flex-wrap border-b border-outline mb-8 gap-4 md:gap-8 pb-px w-full">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

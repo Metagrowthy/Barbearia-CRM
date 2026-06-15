@@ -996,7 +996,7 @@ export default function SettingsView({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Navigation Sidebar */}
-        <div className="lg:col-span-4 flex flex-row lg:flex-col gap-3 sticky top-8 overflow-x-auto lg:overflow-x-visible pb-4 lg:pb-0 scrollbar-hide">
+        <div className="lg:col-span-4 flex flex-row flex-wrap lg:flex-col gap-3 sticky top-8 lg:overflow-x-visible pb-4 lg:pb-0 w-full">
           {settingsSections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection === section.id;
