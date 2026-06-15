@@ -27,6 +27,7 @@
 /* Overrides planos para o tema escuro "Cinza Profissional" */
 [data-theme="cinza-profissional"] .bg-white:not(.bg-primary):not(.royal-gradient):not(.bg-theme-active),
 [data-theme="cinza-profissional"] .bg-white\/90:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-white\/70:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .bg-gray-50:not(.bg-primary):not(.royal-gradient):not(.bg-theme-active),
 [data-theme="cinza-profissional"] .bg-gray-50\/20:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .bg-gray-50\/50:not(.bg-primary):not(.royal-gradient),
@@ -49,6 +50,7 @@
   color: var(--text-color) !important;
 }
 
+[data-theme="cinza-profissional"] .text-gray-600:not(.text-white),
 [data-theme="cinza-profissional"] .text-gray-500:not(.text-white):not(.text-green-600):not(.text-green-700),
 [data-theme="cinza-profissional"] .text-gray-400:not(.text-white),
 [data-theme="cinza-profissional"] .text-muted-theme {
