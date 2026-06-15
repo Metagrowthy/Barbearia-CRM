@@ -384,7 +384,7 @@ export default function HistoryView({
             />
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {['all', 'confirmado', 'concluido', 'cancelado'].map((f) => (
               <button
                 key={f}
@@ -461,7 +461,7 @@ export default function HistoryView({
                         {apt.source === 'app' ? 'Dashboard' : 'Agendamento Online'}
                       </span>
                       
-                      <div className="flex flex-col items-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                      <div className="flex flex-col items-end gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all mt-2 md:mt-0">
                         {apt.status !== 'concluido' && apt.status !== 'cancelado' && (
                           <button 
                             onClick={() => handleQuickComplete(apt)}

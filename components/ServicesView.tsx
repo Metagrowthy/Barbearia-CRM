@@ -458,7 +458,7 @@ export default function ServicesView({
                     <span className="text-[9px] font-black text-primary uppercase tracking-widest px-2.5 py-1 bg-primary/5 rounded-full border border-primary/10">
                       {item.category}
                     </span>
-                    <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-[-5px] group-hover:translate-y-0">
+                    <div className="flex gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all translate-y-0 md:translate-y-[-5px] md:group-hover:translate-y-0">
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
                         className="p-2 bg-white hover:bg-primary/5 rounded-xl border border-outline transition-all text-gray-400 hover:text-primary shadow-sm"
@@ -491,13 +491,21 @@ export default function ServicesView({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 mt-3 text-[10px] font-bold uppercase tracking-widest">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        (item.stock || 0) > 5 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-                      )}>
-                        Estoque: {item.stock} un
-                      </span>
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded",
+                          (item.stock || 0) > 5 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                        )}>
+                          Estoque: {item.stock} un
+                        </span>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }}
+                        className="text-[9px] font-black uppercase text-primary border border-primary/20 bg-primary/5 px-2 py-1 rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-1 shrink-0"
+                      >
+                        <Plus size={10} /> Add Estoque
+                      </button>
                     </div>
                   )}
                 </div>
@@ -630,7 +638,7 @@ export default function ServicesView({
                 ) : (
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-2">
-                      <Package size={12} /> Quantidade Inicial em Estoque
+                      <Package size={12} /> Quantidade em Estoque
                     </label>
                     <input 
                       type="number"
