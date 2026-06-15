@@ -345,7 +345,7 @@ export default function ClientsView({ onNewClient, establishmentId }: ClientsVie
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-outline z-20 overflow-hidden"
+                    className="absolute left-0 md:left-auto md:right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-outline z-20 overflow-hidden"
                   >
                     <div className="p-2 space-y-1">
                       {filterOptions.map((opt) => (

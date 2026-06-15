@@ -46,7 +46,7 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
   const hasInitializedBarbers = React.useRef(false);
   React.useEffect(() => {
     if (barbers.length > 0 && !hasInitializedBarbers.current) {
-      setSelectedBarbers(barbers.map(b => b.name));
+      setSelectedBarbers([]);
       hasInitializedBarbers.current = true;
     }
   }, [barbers]);
@@ -338,7 +338,8 @@ export default function CalendarView({ onNewAppointment, appointments: externalA
 
             <div className="overflow-x-auto">
               <div className={cn(
-                "min-w-[900px] lg:min-w-0",
+                selectedBarbers.length > 2 ? "min-w-[900px]" : selectedBarbers.length === 2 ? "min-w-[600px]" : "w-full",
+                "lg:min-w-0",
                 (currentView === 'Dia' || currentView === 'Semana') && "flex flex-col"
               )}>
                 {/* Header for Barbers in Dia view */}

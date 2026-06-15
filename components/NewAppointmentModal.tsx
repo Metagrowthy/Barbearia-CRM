@@ -541,23 +541,23 @@ export default function NewAppointmentModal({
 
                   {/* Summary Floating Bar */}
                   <div className="sticky bottom-0 bg-white pt-4 pb-0 border-t border-outline -mx-8 px-8 mt-auto z-10">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total do Atendimento</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                      <div className="flex items-center justify-between sm:block">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total <span className="hidden sm:inline">do Atendimento</span></p>
                         <p className="text-xl font-black text-primary">R$ {totalPrice + Number(additionalPrice)},00</p>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex gap-2 w-full sm:w-auto">
                         <button 
                           type="button"
                           onClick={() => setStep(1)}
-                          className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
+                          className="flex-1 sm:flex-none px-4 sm:px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
                         >
                           Voltar
                         </button>
                         <button 
                           type="submit"
                           disabled={formData.selectedServices.length === 0 || !formData.date || !formData.time}
-                          className="px-8 py-3 royal-gradient text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                          className="flex-[2] sm:flex-none px-4 sm:px-8 py-3 royal-gradient text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                         >
                           Finalizar Tudo
                         </button>
