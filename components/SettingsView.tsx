@@ -815,12 +815,12 @@ export default function SettingsView({
         <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-4 flex items-center gap-2">
           <Layers size={14} /> Nicho de Atuação do Negócio
         </label>
-        <div className="relative max-w-md">
+        <div className="relative w-full max-w-full md:max-w-2xl">
           <select
             value={selectedNiche}
             onChange={(e) => handleNicheChange(e.target.value)}
             disabled={externalBarbers && externalBarbers.length > 0}
-            className="w-full px-4 py-3.5 bg-white border border-outline rounded-xl text-sm font-black text-gray-700 focus:ring-2 focus:ring-primary/20 transition-all appearance-none disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+            className="w-full px-4 md:px-5 py-3.5 md:py-4 bg-white border border-outline rounded-xl text-sm md:text-base font-black text-gray-700 focus:ring-2 focus:ring-primary/20 transition-all appearance-none disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
           >
             {NICHES.map(n => (
               <option key={n.id} value={n.id}>
