@@ -7,7 +7,7 @@ import {
   Users,
   Instagram, MessageCircle, Mail, Lock, Eye, EyeOff, LayoutTemplate,
   Palette, Camera, ExternalLink, Trash2, Plus, Code, Link, Zap, Scissors,
-  Clock, ChevronRight, Loader2, ShieldCheck, Layers
+  Clock, ChevronRight, ChevronDown, Loader2, ShieldCheck, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -815,43 +815,28 @@ export default function SettingsView({
         <label className="text-[10px] font-black text-muted-theme uppercase tracking-widest block mb-4 flex items-center gap-2">
           <Layers size={14} /> Nicho de Atuação do Negócio
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-          {NICHES.map(n => {
-            const NicheIcon = n.icon;
-            const isSelected = selectedNiche === n.id;
-            return (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => handleNicheChange(n.id)}
-                className={cn(
-                  "p-3 rounded-2xl border-2 transition-all flex items-center gap-3 text-left group hover:scale-[1.02] active:scale-95",
-                  isSelected 
-                    ? "border-primary bg-primary/5 shadow-md shadow-primary/5" 
-                    : "border-outline bg-white hover:border-gray-300"
-                )}
-              >
-                <div 
-                  className={cn(
-                    "p-2.5 rounded-xl transition-colors shrink-0",
-                    isSelected ? "bg-primary text-white animate-pulse" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200 group-hover:text-gray-600"
-                  )}
-                  style={isSelected ? { backgroundColor: n.primaryColor } : {}}
-                >
-                  <NicheIcon size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn("text-[11px] sm:text-xs font-black leading-tight break-words", isSelected ? "text-primary" : "text-gray-700")}>
-                    {n.name}
-                  </p>
-                  <p className="text-[9px] text-gray-400 font-bold uppercase mt-0.5 truncate">
-                    {n.employeeLabelPlural}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+        <div className="relative max-w-md">
+          <select
+            value={selectedNiche}
+            onChange={(e) => handleNicheChange(e.target.value)}
+            disabled={externalBarbers && externalBarbers.length > 0}
+            className="w-full px-4 py-3.5 bg-white border border-outline rounded-xl text-sm font-black text-gray-700 focus:ring-2 focus:ring-primary/20 transition-all appearance-none disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+          >
+            {NICHES.map(n => (
+              <option key={n.id} value={n.id}>
+                {n.name}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+            <ChevronDown size={16} />
+          </div>
         </div>
+        {externalBarbers && externalBarbers.length > 0 && (
+          <p className="text-[10px] text-amber-500 font-bold mt-2 flex items-center gap-1.5 uppercase tracking-wider">
+            <Lock size={12} /> Seleção travada (Você já possui registros vinculados)
+          </p>
+        )}
       </div>
 
       <div>
