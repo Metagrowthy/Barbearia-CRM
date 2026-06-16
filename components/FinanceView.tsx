@@ -605,7 +605,7 @@ export default function FinanceView({
       </div>
 
       {/* Tabs Internas */}
-      <div className="flex gap-1 bg-gray-100/50 p-1 rounded-2xl w-fit">
+      <div className="flex gap-1 bg-gray-100/50 p-1 rounded-2xl w-fit mx-auto overflow-x-auto max-w-full">
         {[
           { id: 'overview', label: 'Visão Geral', icon: PieChartIcon },
           { id: 'flow', label: 'Fluxo de Caixa', icon: DollarSign },
@@ -617,8 +617,8 @@ export default function FinanceView({
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === tab.id 
-                ? 'bg-white text-primary shadow-sm ring-1 ring-black/5' 
-                : 'text-gray-400 hover:text-gray-600'
+                ? 'bg-white bg-theme-active text-primary shadow-sm ring-1 ring-black/5' 
+                : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
             }`}
           >
             <tab.icon size={14} />

@@ -30,8 +30,10 @@
 [data-theme="cinza-profissional"] .bg-white\/70:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .bg-gray-50:not(.bg-primary):not(.royal-gradient):not(.bg-theme-active),
 [data-theme="cinza-profissional"] .bg-gray-50\/20:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-gray-50\/30:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .bg-gray-50\/50:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .bg-gray-100:not(.bg-primary):not(.royal-gradient),
+[data-theme="cinza-profissional"] .bg-gray-100\/50:not(.bg-primary):not(.royal-gradient),
 [data-theme="cinza-profissional"] .glass-card,
 [data-theme="cinza-profissional"] .glass-panel {
   background-color: var(--bg-secondary) !important;
@@ -97,6 +99,13 @@
 /* Ícone do Topbar e botões inativos de navegação */
 [data-theme="cinza-profissional"] .text-gray-400 {
   color: var(--text-secondary) !important;
+}
+
+/* Abas ativas nos painéis */
+[data-theme="cinza-profissional"] .bg-theme-active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-color) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 body {
